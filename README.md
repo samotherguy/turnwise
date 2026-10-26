@@ -94,6 +94,8 @@ LLM_MODEL=qwen3.6:35b-a3b
 
 The script binds Ollama to that one address only. A 35B mixture-of-experts model with 3B active parameters runs usefully on a 12 GB card with the rest in RAM; a dense model of that size would not.
 
+That box does not need to stay on. Add `WAKE_MAC=<its wired MAC>` to the env file and the server sends it a Wake-on-LAN packet whenever its Ollama is not answering, at the start of a transcription job (so it boots while the audio is being transcribed) and before any chat answer, then waits up to 150 s for it. On the second machine, `scripts/idle-off.sh` from root's crontab every 5 minutes powers it off after 90 minutes with no Ollama request, SSH connection, running container or GPU work. Wake-on-LAN needs a wired port with it enabled in the BIOS and `ethtool <nic> | grep Wake-on` showing `g`; if boot takes two minutes before Ollama answers, an unplugged second NIC is holding up `systemd-networkd-wait-online`.
+
 ## Using it
 
 **Web app.** Record, upload, open a note: summary and action items at the top, then the transcript with Hinglish / English / Original tabs, tap a turn to seek the audio, tap a speaker to name them. The "⋯" menu renames, moves to a folder, copies markdown, re-transcribes or deletes. Settings has the voice-match threshold, the denoise toggle, and the list of known voices.

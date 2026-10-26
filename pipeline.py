@@ -1,5 +1,5 @@
 """denoise -> diarize -> transcribe -> name speakers -> write note. One job at a time (GPU)."""
-import datetime, json, os, re, shutil, subprocess, tempfile, threading, time
+import datetime, json, os, re, shutil, socket, subprocess, tempfile, threading, time
 from pathlib import Path
 
 import numpy as np
@@ -15,6 +15,7 @@ EMB_MODEL = DIAR_MODEL  # centroids come from the diarization pipeline
 LLM_MODEL = os.environ.get("LLM_MODEL", "qwen3.5:9b")
 OLLAMA = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
 LLM_SHARES_GPU = any(h in OLLAMA for h in ("127.0.0.1", "localhost"))  # remote Ollama: never evict either side
+WAKE_MAC = os.environ.get("WAKE_MAC")  # set to the LLM box's MAC and it gets a Wake-on-LAN packet when its Ollama is down (it powers off when idle)
 NUM_CTX = 24576  # one context size for every Ollama call: a different num_ctx reloads the model (14 s) and drops its KV cache
 CHARS_PER_TOKEN = 2.4  # measured for Hinglish on qwen3.6; prompts longer than NUM_CTX are silently cut in half by Ollama
 SR = 16000
@@ -375,8 +376,34 @@ For each item return {i, hinglish, english}:
 Keep every sentence and every item. Do not summarise, merge, or add anything."""
 
 
+def magic_packet(mac):
+    return b"\xff" * 6 + bytes.fromhex(mac.replace(":", "").replace("-", "")) * 16
+
+
+def llm_up(timeout=2):
+    import urllib.request
+    try:  # GET: Ollama's idle check on the other box only counts POSTs, so probing never keeps it awake
+        urllib.request.urlopen(OLLAMA + "/api/version", timeout=timeout).read()
+        return True
+    except Exception:
+        return False
+
+
+def wake_llm(wait=150):
+    """Boot the LLM box over Wake-on-LAN if its Ollama is not answering and wait for it (~30 s cold). No-op without WAKE_MAC."""
+    if not WAKE_MAC or llm_up():
+        return
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        s.sendto(magic_packet(WAKE_MAC), ("255.255.255.255", 9))
+    deadline = time.time() + wait
+    while time.time() < deadline and not llm_up(5):
+        time.sleep(3)
+
+
 def llm_messages(messages, schema, num_predict=None):
     import urllib.request
+    wake_llm()
     opts = {"temperature": 0.1, "num_ctx": NUM_CTX, **({"num_predict": num_predict} if num_predict else {})}
     body = {"model": LLM_MODEL, "stream": False, "think": False, "keep_alive": "5m" if LLM_SHARES_GPU else -1, "format": schema,
             "options": opts, "messages": messages}
@@ -489,6 +516,7 @@ def run(note_dir):
         with MODELS.lock, tempfile.TemporaryDirectory() as tmp:
             MODELS.last_used = time.time()
             work = Path(tmp)
+            threading.Thread(target=wake_llm, daemon=True).start()  # boots during transcription, so the translate step finds it up
             ollama_unload()
             st("denoise" if cfg["denoise"] else "convert")
             wav16 = prepare_audio(src, work, cfg["denoise"], cfg["atten_db"], lambda d: st("denoise", d))
@@ -560,6 +588,7 @@ if __name__ == "__main__":
     assert strip_context("Okay. Details baad mein bhejna.") == "Okay. Details baad mein bhejna."
     assert merge_turns([(0, 1, "A"), (1.2, 2, "A"), (2.5, 3, "B"), (3.1, 3.2, "B")]) == [(0, 2, "A"), (2.5, 3.2, "B")]
     assert NUM_CTX == 24576 and "num_ctx" not in llm_json.__code__.co_varnames
+    assert magic_packet("00:10:F3:a1:5f:ad") == b"\xff" * 6 + b"\x00\x10\xf3\xa1\x5f\xad" * 16 and len(magic_packet("00:10:f3:a1:5f:ad")) == 102
     assert summarize.__code__.co_consts.count(12288) == 0 and summarize.__code__.co_consts.count(30000) == 0
     if len(sys.argv) < 2:
         print('self-checks ok'); sys.exit()
