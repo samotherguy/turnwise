@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Blip and Bolt, the two Turnwise voices, mid-conversation. Units match the in-app Duo drawing. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <group android:scaleX="0.84" android:scaleY="0.84" android:translateX="12" android:translateY="26">
+        <!-- ground shadows -->
+        <path android:fillColor="#59000000" android:pathData="M13,55.5a17,1.8 0 1,0 34,0a17,1.8 0 1,0 -34,0z" />
+        <path android:fillColor="#59000000" android:pathData="M53,55.5a17,1.8 0 1,0 34,0a17,1.8 0 1,0 -34,0z" />
+        <!-- Blip -->
+        <path android:fillColor="#FF0A5E2A" android:pathData="M22,30l3,-10 5,9zM34,29l5,-9 3,10z" />
+        <path android:pathData="M12,54C10,40 16,28 30,28C44,28 50,40 48,54Z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="radial" android:centerX="23" android:centerY="33" android:gradientRadius="28">
+                    <item android:offset="0" android:color="#FF8CF7B4" />
+                    <item android:offset="0.5" android:color="#FF1DB954" />
+                    <item android:offset="1" android:color="#FF0A5E2A" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:fillColor="#59FFFFFF" android:pathData="M18,33.7a3,1.7 0 1,0 6,0a3,1.7 0 1,0 -6,0z" />
+        <path android:fillColor="#8CFF7A9A" android:pathData="M15.9,46a2.6,2.6 0 1,0 5.2,0a2.6,2.6 0 1,0 -5.2,0zM38.9,46a2.6,2.6 0 1,0 5.2,0a2.6,2.6 0 1,0 -5.2,0z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M20,40a4,4 0 1,0 8,0a4,4 0 1,0 -8,0zM32,40a4,4 0 1,0 8,0a4,4 0 1,0 -8,0z" />
+        <path android:fillColor="#FF141414" android:pathData="M24,40.4a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0zM36,40.4a1.9,1.9 0 1,0 3.8,0a1.9,1.9 0 1,0 -3.8,0z" />
+        <path android:fillColor="#FF141414" android:pathData="M26.5,47.5a3.5,3 0 1,0 7,0a3.5,3 0 1,0 -7,0z" />
+        <!-- Bolt -->
+        <path android:fillColor="#FFA9501A" android:pathData="M69,14h2v8h-2z" />
+        <path android:fillColor="#FFFFD0A0" android:pathData="M66,14a4,4 0 1,0 8,0a4,4 0 1,0 -8,0z" />
+        <path android:pathData="M67,20h6a15,15 0 0,1 15,15v4a15,15 0 0,1 -15,15h-6a15,15 0 0,1 -15,-15v-4a15,15 0 0,1 15,-15z">
+            <aapt:attr name="android:fillColor">
+                <gradient android:type="radial" android:centerX="61" android:centerY="27" android:gradientRadius="34">
+                    <item android:offset="0" android:color="#FFFFD0A0" />
+                    <item android:offset="0.45" android:color="#FFF68B35" />
+                    <item android:offset="1" android:color="#FFA9501A" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <path android:fillColor="#59FFFFFF" android:pathData="M56,26a3.5,2 0 1,0 7,0a3.5,2 0 1,0 -7,0z" />
+        <path android:fillColor="#8CFF7A9A" android:pathData="M55.9,45a2.6,2.6 0 1,0 5.2,0a2.6,2.6 0 1,0 -5.2,0zM78.9,45a2.6,2.6 0 1,0 5.2,0a2.6,2.6 0 1,0 -5.2,0z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M62.5,36a7.5,7.5 0 1,0 15,0a7.5,7.5 0 1,0 -15,0z" />
+        <path android:fillColor="#FF141414" android:pathData="M64.4,36a3,3 0 1,0 6,0a3,3 0 1,0 -6,0z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M64.6,34.8a1,1 0 1,0 2,0a1,1 0 1,0 -2,0z" />
+        <path android:strokeColor="#FF141414" android:strokeWidth="1.8" android:strokeLineCap="round" android:pathData="M64,46q6,5 12,0" />
+    </group>
+</vector>
