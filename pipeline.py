@@ -401,15 +401,18 @@ def wake_llm(wait=150):
         time.sleep(3)
 
 
-def llm_messages(messages, schema, num_predict=None):
+def llm_messages(messages, schema, num_predict=None, temperature=0.1):
     import urllib.request
     wake_llm()
-    opts = {"temperature": 0.1, "num_ctx": NUM_CTX, **({"num_predict": num_predict} if num_predict else {})}
+    opts = {"temperature": temperature, "num_ctx": NUM_CTX, **({"num_predict": num_predict} if num_predict else {})}
     body = {"model": LLM_MODEL, "stream": False, "think": False, "keep_alive": "5m" if LLM_SHARES_GPU else -1, "format": schema,
             "options": opts, "messages": messages}
     req = urllib.request.Request(OLLAMA + "/api/chat", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=1800) as r:
-        return json.loads(json.loads(r.read())["message"]["content"])
+        res = json.loads(r.read())
+    if res.get("done_reason") == "length":   # it ran out of room mid-answer: a repetition loop, not a short reply
+        raise ValueError(f"the model ran past {num_predict or NUM_CTX} tokens")
+    return json.loads(res["message"]["content"])
 
 
 def llm_json(system, user, schema):
@@ -428,11 +431,22 @@ def ollama_unload():
         pass
 
 
-def llm_batch(items):
+def llm_batch(items, call=None):
+    """-> {i: {hinglish, english}}. Now and then the model loops inside a string until the context is full
+    (seen: ten minutes, then cut-off JSON). Its output is capped near what a real answer needs and a looping
+    batch is retried once at a higher temperature, which breaks the loop."""
+    call = call or llm_messages
     schema = {"type": "object", "properties": {"items": {"type": "array", "items": {"type": "object", "properties": {
         "i": {"type": "integer"}, "hinglish": {"type": "string"}, "english": {"type": "string"}}, "required": ["i", "hinglish", "english"]}}}, "required": ["items"]}
-    out = llm_json(LLM_PROMPT, json.dumps(items, ensure_ascii=False), schema)["items"]
-    return {o["i"]: o for o in out}
+    text = json.dumps(items, ensure_ascii=False)
+    # ponytail: real answers measured at <= 2.3x the input in characters (199 batches); 4x leaves headroom.
+    budget = 512 + int(4 * len(text) / CHARS_PER_TOKEN)
+    msgs = [{"role": "system", "content": LLM_PROMPT}, {"role": "user", "content": text}]
+    try:
+        out = call(msgs, schema, num_predict=budget, temperature=0.1)
+    except ValueError:   # cut off or malformed JSON (JSONDecodeError is a ValueError)
+        out = call(msgs, schema, num_predict=budget, temperature=0.6)
+    return {o["i"]: o for o in out["items"]}
 
 
 SUMMARY_SCHEMA = {"type": "object", "properties": {
@@ -462,23 +476,30 @@ def summarize(segments, speakers, status=lambda d: None):
     return llm_json(SUMMARY_PROMPT, text, SUMMARY_SCHEMA)
 
 
-def hinglish_english(segments, status):
-    """Fills seg['hinglish'] / seg['english'] in place. Returns a warning string or ''."""
+def hinglish_english(segments, status, batch_fn=None):
+    """Fills seg['hinglish'] / seg['english'] in place. Returns a warning string or ''.
+    A batch the model gets wrong keeps its raw words and the rest carry on; an unreachable Ollama stops the pass."""
+    batch_fn = batch_fn or llm_batch
     todo = [(i, s) for i, s in enumerate(segments) if s["text"]]
     B = 15
-    try:
-        for k in range(0, len(todo), B):
-            status(f"{k}/{len(todo)}")
-            batch = todo[k:k + B]
-            got = llm_batch([{"i": i, "text": s["text"]} for i, s in batch])
-            for i, s in batch:
-                o = got.get(i, {})
-                s["hinglish"] = o.get("hinglish") or s["text"]
-                s["english"] = o.get("english") or s["text"]
-    except Exception as e:
-        for _, s in todo:
-            s.setdefault("hinglish", s["text"]); s.setdefault("english", s["text"])
-        return f"Hinglish/English pass failed ({type(e).__name__}: {str(e)[:120]}); is Ollama running with {LLM_MODEL}?"
+    kept_raw, err = 0, None
+    for k in range(0, len(todo), B):
+        status(f"{k}/{len(todo)}")
+        batch = todo[k:k + B]
+        try:
+            got = batch_fn([{"i": i, "text": s["text"]} for i, s in batch])
+        except (ValueError, KeyError, TypeError) as e:
+            got, kept_raw, err = {}, kept_raw + len(batch), e
+        except Exception as e:
+            for _, s in todo:
+                s.setdefault("hinglish", s["text"]); s.setdefault("english", s["text"])
+            return f"Hinglish/English pass failed ({type(e).__name__}: {str(e)[:120]}); is Ollama running with {LLM_MODEL}?"
+        for i, s in batch:
+            o = got.get(i, {})
+            s["hinglish"] = o.get("hinglish") or s["text"]
+            s["english"] = o.get("english") or s["text"]
+    if kept_raw:
+        return f"{kept_raw} of {len(todo)} turns kept their raw words: the model's rewrite was unusable ({type(err).__name__}: {str(err)[:100]})."
     return ""
 
 
@@ -590,6 +611,20 @@ if __name__ == "__main__":
     assert NUM_CTX == 24576 and "num_ctx" not in llm_json.__code__.co_varnames
     assert magic_packet("00:10:F3:a1:5f:ad") == b"\xff" * 6 + b"\x00\x10\xf3\xa1\x5f\xad" * 16 and len(magic_packet("00:10:f3:a1:5f:ad")) == 102
     assert summarize.__code__.co_consts.count(12288) == 0 and summarize.__code__.co_consts.count(30000) == 0
+    # A looping first try is retried warmer; a batch that fails twice keeps its raw words and later batches still run.
+    tries = []
+    def flaky(msgs, schema, num_predict, temperature):
+        tries.append((temperature, num_predict))
+        if temperature < 0.5: raise ValueError("cut off")
+        return {"items": [{"i": x["i"], "hinglish": "h", "english": "e"} for x in json.loads(msgs[1]["content"])]}
+    assert llm_batch([{"i": 0, "text": "haan"}], call=flaky) == {0: {"i": 0, "hinglish": "h", "english": "e"}}
+    assert [t for t, _ in tries] == [0.1, 0.6] and 512 < tries[0][1] < 600
+    def second_bad(items):
+        if items[0]["i"] >= 15: raise ValueError("cut off twice")
+        return {x["i"]: {"hinglish": "h" + x["text"], "english": "e"} for x in items}
+    segs = [{"text": f"t{n}"} for n in range(20)]
+    w = hinglish_english(segs, lambda d: None, batch_fn=second_bad)
+    assert w.startswith("5 of 20 turns kept their raw words") and segs[0]["hinglish"] == "ht0" and segs[19]["hinglish"] == "t19", (w, segs[19])
     if len(sys.argv) < 2:
         print('self-checks ok'); sys.exit()
     # smoke check: python pipeline.py some.m4a  -> transcribes into NOTES and prints the markdown
