@@ -7,12 +7,14 @@ Self-hosted meeting transcription for conversations that switch between Hindi an
 I built it after noticing what transcription tools do with conversations that switch between Hindi and English: they either force the whole thing into English, write it in Devanagari, or send the audio to someone else's cloud. What I wanted was narrower than "AI meeting notes": capture who said what, verbatim, in the script people actually type in, and be able to ask questions about it later from Claude Code.
 
 <p>
-<img src="docs/app.gif" width="300" alt="The phone app: the home screen with two small monsters taking turns to talk, a transcript with each speaker in their own colour, then a chat question answered from the recordings with the turns it used listed underneath, and one of them playing in a small player with the words on screen">
+<img src="docs/android.gif" width="270" alt="The Android app: the home screen with Blip and Bolt taking turns to talk, a note with its summary and a transcript that highlights each turn as it plays, a chat answer with the turns it used, and the Listen tab where the two monsters listen while a moment is picked from the loudness wave">
+&nbsp;
+<img src="docs/app.gif" width="270" alt="The phone app: the home screen with two small monsters taking turns to talk, a transcript with each speaker in their own colour, then a chat question answered from the recordings with the turns it used listed underneath, and one of them playing in a small player with the words on screen">
 &nbsp;
 <img src="docs/demo.gif" width="560" alt="A short two-person Hinglish meeting transcribed from the command line: speakers, timestamps, the Hinglish line and an English line per turn, summary and action items">
 </p>
 
-The app on the left, the command line on the right. The recordings in the clip are made up.
+The native Android app, the web app, and the command line. The recordings in the clips are made up.
 
 A turn in the transcript looks like this:
 
@@ -23,6 +25,7 @@ A turn in the transcript looks like this:
 
 ## What it does
 
+- **A native Android app that is always listening.** It keeps the last hours of audio in a rolling buffer on the phone, so you can send a conversation after it happened: pick the moment on a loudness wave, play it, send it. The whole of Turnwise is native in the app too: notes, transcripts that follow along as they play, the chat, settings, a home-screen widget, and "send the last 15 minutes" in the notification. See [The Android app](#the-android-app).
 - **Record or upload.** A phone-installable web app (PWA) on your Tailscale network: tap to record, share a file from any app, or upload several large files at once with progress. The note's date comes from the file, not the upload.
 - **Noise removal** for phone recordings in cafés and cars, with the attenuation capped so quiet, far-away speakers are not silenced.
 - **Speaker detection** with voice memory: name "Speaker 2" once and the same voice is named automatically in future recordings.
@@ -35,6 +38,22 @@ A turn in the transcript looks like this:
 - **A Claude Code skill** so that "what did we decide about the draft last week?" is answered from the transcripts.
 - **One engine** behind the web app, the CLI and the bulk importer, so every path produces the same note.
 - **Runs as a service**: starts on boot, frees the GPU when idle, resumes interrupted jobs after a restart.
+
+## Architecture
+
+<img src="docs/architecture.svg" alt="System architecture: the Android app and the web app reach Tailscale Serve over HTTPS; it adds the visitor's login and proxies to a FastAPI service on the Turnwise machine. The API queues jobs for one GPU worker, which writes notes to disk and calls an Ollama LLM, optionally on a second machine woken over Wake-on-LAN. A chat engine reads the notes and answers with the local model or, for the owner, with Claude Code. Claude Code's skill and the CLI call the API locally.">
+
+1. **Phone.** The Android app keeps a rolling buffer and sends a stretch you pick, or a file you share to it. The web app records or uploads in the browser.
+2. **Tailscale Serve** terminates HTTPS on :8446 and stamps every request with the visitor's tailnet login, overwriting anything a client sent.
+3. **FastAPI** turns that login into a notes root (yours, or a guest's own), stores the upload and queues a job. It also serves the web app and the REST API both apps use.
+4. **One GPU worker** runs one job at a time: ffmpeg, DeepFilterNet on the CPU, pyannote and Qwen3-ASR with MMS alignment on the GPU, then matching against known voices.
+5. **The LLM pass** rewrites every turn as Hinglish and English and writes the title, summary and action items, on the same GPU or on a second machine that is woken over Wake-on-LAN and powers itself off when idle.
+6. **Each note is a folder**: the audio, meta and status, `transcript.json`, `transcript.md` and the chat index.
+7. **A question** retrieves turns with bge-m3, is answered by the local model, and cites the turns it used; tap one to play it.
+8. **The owner can ask Claude instead.** The retrieved turns then leave the tailnet, which is the only path that does.
+9. **Claude Code's skill and the CLI** call the API on the same machine with no login header, so they act as the owner.
+
+The diagrams are drawn by [`docs/diagrams/build.py`](docs/diagrams/build.py), which refuses to write one whose lines do not start and end on a box or that cross a box or each other.
 
 ## How a recording flows through
 
@@ -125,6 +144,35 @@ The owner can switch a question to Claude. That runs the Claude Code CLI in head
 
 Deleting a known voice also untags that name in every note, so the labels can be redone.
 
+## The Android app
+
+[`android/`](android) is a native Kotlin and Jetpack Compose app with no third-party libraries beyond AndroidX. It does two things: it listens all the time, so nothing has to be planned, and it is a full Turnwise client.
+
+<img src="docs/android-architecture.svg" alt="Android app architecture: five Compose screens on a shell with the mini player and the two monsters; a shared PreviewPlayer and an Api client that talks to the Turnwise server over Tailscale; and an always-on recorder in which a widget and notification drive a foreground RecorderService, a RecordingEngine reading the microphone, a ChunkWriter encoding 30-second AAC chunks, a ChunkStore keeping the last hours, and a ClipExporter that saves clips to Recordings.">
+
+1. **RecorderService** holds the microphone as a foreground service and comes back if Android kills it.
+2. **ChunkWriter** encodes 30-second AAC chunks at 48 kbps (about 21 MB an hour) and stores one loudness value per second, which draws the wave on the Listen tab.
+3. **ChunkStore** keeps the last 1 to 10 hours, pins chunks while they are being previewed or exported, and keeps a meeting that is being recorded however long it runs.
+4. **Listen** shows the buffer as a loudness wave, with the talking stretches bright. Quick picks zoom in; tap a bright stretch or drag the handles, play it, then save or send.
+5. **ClipExporter** joins chunks without re-encoding into `Recordings/RollingRecorder`. Send uploads that file and opens the note in the app.
+6. **One Api client** serves Notes, Ask and Settings: the same REST API as the web app, with the same 20-second cap, and screens that repaint from their last answer while a job runs.
+7. **PreviewPlayer** is the one player for previews, saved clips and note audio streamed from the server, so the mini player shows who is talking and skips turn by turn.
+8. **The widget** starts and stops listening in one tap; the notification has Stop and "Send last 15 min".
+
+Record on the Notes tab marks a start in the buffer and sends from there when you stop, so you can lock the phone or leave the app mid-meeting. Sharing an audio file from any app uploads it.
+
+**Build and install** (JDK 17 and the Android SDK; the Gradle wrapper fetches the rest):
+
+```bash
+cd android
+./gradlew assembleDebug testDebugUnitTest
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Then, in the app: Settings → Server → your Tailscale Serve address (the phone must be on the tailnet), Listen → Start, and allow unrestricted battery use when it asks. To have the widget, long-press the home screen and add "Turnwise".
+
+**Its limits.** Android does not let a microphone service start itself from the background, so after an update or a reboot the app has to be opened once (the notification says so). Detecting that another app has taken the microphone relies on Android's own signal: some phones send exact digital silence in a quiet room, so silence alone is not treated as a takeover. The package is still `com.rollingrecorder`, from its first life as a recorder; renaming it would wipe the buffer and settings of an installed copy.
+
 ## More than one person
 
 Anyone you add to your tailnet can use the app with their own notes. Tailscale Serve stamps each request with the visitor's login and overwrites any header a client sends, so the server needs no login of its own: requests with your login, or with none (the CLI and the Claude skill run locally), use your notes; every other login gets its own root under `~/notes/audio-users/<login>/` with its own voice memory, settings and theme. A note id only resolves inside the requester's root, so nobody can open anyone else's notes, and the CLI and skill never see the other roots. Set `OWNER_LOGIN` in the env file to your tailnet login.
@@ -165,13 +213,15 @@ Things I would do next, roughly in the order they would help:
 
 ## Licences
 
-Code is MIT. The models have their own terms: pyannote community-1 is CC-BY-4.0 and gated; Qwen3-ASR is Apache-2.0; DeepFilterNet is MIT/Apache-2.0; the MMS forced aligner weights are CC-BY-NC-4.0, which matters if you use this commercially. The Baloo 2 font bundled in `static/fonts/` is under the SIL Open Font License.
+Code is MIT, the Android app included. The models have their own terms: pyannote community-1 is CC-BY-4.0 and gated; Qwen3-ASR is Apache-2.0; DeepFilterNet is MIT/Apache-2.0; the MMS forced aligner weights are CC-BY-NC-4.0, which matters if you use this commercially. The Baloo 2 font bundled in `static/fonts/` is under the SIL Open Font License.
 
 ## Tests
 
 ```bash
 .venv/bin/python -I tests/test_chat.py   # index, retrieval, prompt budget, validation, sessions, race on clear/delete
-.venv/bin/python pipeline.py             # self-checks for chunking, alignment, context-echo stripping
+.venv/bin/python pipeline.py             # self-checks for chunking, alignment, context-echo stripping, LLM batch retries
+(cd android && ./gradlew testDebugUnitTest)   # note parsing, the loudness blocks, markdown, speaker colours checked against the web app
+python3 docs/diagrams/build.py           # redraws the diagrams, checking every connector
 ```
 
 The phone behaviour (chat, player, instant navigation, drafts surviving re-renders) is checked in WebKit with Playwright's iPhone profile; the scripts live outside the repo for now.
