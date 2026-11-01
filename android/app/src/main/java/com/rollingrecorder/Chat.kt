@@ -87,7 +87,7 @@ fun ChatsScreen(note: String?, snackbar: SnackbarHostState, padding: PaddingValu
                 if (back != null) TopBar(back, "Note")
                 Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth()) {
                     Box(Modifier.weight(1f)) { PageTitle(data?.noteTitle ?: if (note == null) "Ask" else "Chats") }
-                    if (note == null) Duo(if (creating) Mood.THINK else Mood.CHAT, Modifier.width(150.dp))
+                    if (note == null) Duo(if (creating) Mood.THINK else Mood.CHAT, Modifier.width(150.dp), caption = true)
                 }
                 Text(
                     if (note == null) "Questions are answered from all your recordings, with the moments they came from."

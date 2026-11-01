@@ -1,0 +1,42 @@
+
+<!-- The two cats, same geometry as Cats.kt (168 x 60 units, tabby shifted left by 52 so the pair fits). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="432" height="432"><rect width="108" height="108" fill="#1DB954"/>
+    <g transform="translate(7,26) scale(0.8,0.8)">
+        <path fill="#000000" fill-opacity="0.35" d="M16,56a14,1.8 0 1,0 28,0a14,1.8 0 1,0 -28,0z" />
+        <path fill="#000000" fill-opacity="0.35" d="M55,56a26,1.8 0 1,0 52,0a26,1.8 0 1,0 -52,0z" />
+        <!-- black cat -->
+        <path stroke="#1F1F25" stroke-opacity="1.00" fill="none" stroke-width="3.6" stroke-linecap="round" d="M40,52C52,54 55,42 49,33C47,29 51,27 53,30" />
+        <path stroke="#50505C" stroke-opacity="0.60" fill="none" stroke-width="0.8" stroke-linecap="round" d="M40,52C52,54 55,42 49,33C47,29 51,27 53,30" />
+        <path stroke="#50505C" stroke-opacity="0.60" stroke-width="0.8" d="M18,54C16,45 21,36 30,35C39,36 44,45 42,54Z" fill="#1F1F25"/>
+        <path stroke="#50505C" stroke-opacity="0.60" stroke-width="0.8" fill="#1F1F25" fill-opacity="1.00" d="M23.2,20.2L18.8,4.3L16.0,20.8zM36.8,20.2L41.2,4.3L44.0,20.8z" />
+        <path fill="#C98A86" fill-opacity="0.80" d="M21.4,19.7L18.8,8.7L17.5,20.0zM38.6,19.7L41.2,8.7L42.5,20.0z" />
+        <path stroke="#50505C" stroke-opacity="0.60" stroke-width="0.8" d="M17,23a13,11 0 1,0 26,0a13,11 0 1,0 -26,0z" fill="#1F1F25"/>
+        <path fill="#FFFFFF" fill-opacity="0.16" d="M21.0,16.8a3.5,1.75 0 1,0 7.0,0a3.5,1.75 0 1,0 -7.0,0z" />
+        <path fill="#FF7A9A" fill-opacity="0.35" d="M18.5,26.5a3,1.6 0 1,0 6,0a3,1.6 0 1,0 -6,0zM35.5,26.5a3,1.6 0 1,0 6,0a3,1.6 0 1,0 -6,0z" />
+        <path fill="#BED34A" fill-opacity="1.00" d="M20.3,22.9Q24.5,14.6 28.7,22.9Q24.5,28.9 20.3,22.9zM31.3,22.9Q35.5,14.6 39.7,22.9Q35.5,28.9 31.3,22.9z" />
+        <path fill="#141414" fill-opacity="1.00" d="M23.599999999999998,22.6a1.3,3.0 0 1,0 2.6,0a1.3,3.0 0 1,0 -2.6,0zM34.6,22.6a1.3,3.0 0 1,0 2.6,0a1.3,3.0 0 1,0 -2.6,0z" />
+        <path fill="#FFFFFF" fill-opacity="0.95" d="M22.7,21.1a1.1,1.1 0 1,0 2.2,0a1.1,1.1 0 1,0 -2.2,0zM33.699999999999996,21.1a1.1,1.1 0 1,0 2.2,0a1.1,1.1 0 1,0 -2.2,0z" />
+        <path fill="#FFFFFF" fill-opacity="0.70" d="M25.3,23.7a0.5,0.5 0 1,0 1.0,0a0.5,0.5 0 1,0 -1.0,0zM36.3,23.7a0.5,0.5 0 1,0 1.0,0a0.5,0.5 0 1,0 -1.0,0z" />
+        <path fill="#50505C" fill-opacity="1.00" d="M28.6,26.8L31.4,26.8L30,28.6z" />
+        <path stroke="#50505C" stroke-opacity="1.00" fill="none" stroke-width="0.9" stroke-linecap="round" d="M27.1,29.2Q28.6,30.4 30,28.6Q31.4,30.4 32.9,29.2" />
+        <!-- tabby -->
+        <path stroke="#4E4234" stroke-opacity="1.00" fill="none" stroke-width="4.6" stroke-linecap="round" d="M106,47C116,53 106,59.5 86,58" />
+        <path stroke="#8E7D64" stroke-opacity="1.00" fill="none" stroke-width="2.8" stroke-linecap="round" d="M106,47C116,53 106,59.5 86,58" />
+        <path d="M52,55C49,41 60,33 80,33C100,33 111,41 108,55Z" fill="#8E7D64"/>
+        <path stroke="#352C24" stroke-opacity="0.55" fill="none" stroke-width="1.8" stroke-linecap="round" d="M58,39Q61,46 57.5,53M67,39Q70,46 66.5,53M76,39Q79,46 75.5,53M85,39Q88,46 84.5,53M94,39Q97,46 93.5,53M103,39Q106,46 102.5,53" />
+        <path fill="#C6B699" fill-opacity="0.80" d="M63,52a5,2 0 1,0 10,0a5,2 0 1,0 -10,0zM77,52a5,2 0 1,0 10,0a5,2 0 1,0 -10,0z" />
+        <path fill="#8E7D64" fill-opacity="1.00" d="M71.9,22.8L66.7,3.9L63.5,23.4zM88.1,22.8L93.3,3.9L96.5,23.4z" />
+        <path fill="#C98A86" fill-opacity="1.00" d="M69.9,22.1L66.7,9.1L65.2,22.5zM90.1,22.1L93.3,9.1L94.8,22.5z" />
+        <path d="M63,26a17,13.5 0 1,0 34,0a17,13.5 0 1,0 -34,0z" fill="#8E7D64"/>
+        <path stroke="#352C24" stroke-opacity="0.75" fill="none" stroke-width="1.5" stroke-linecap="round" d="M75,14L76.25,19.5M80,14L80,19.5M85,14L83.75,19.5M65.5,25L69,27.5M94.5,25L91,27.5" />
+        <path fill="#F1E9DB" fill-opacity="1.00" d="M71.5,33.25a8.5,4.75 0 1,0 17.0,0a8.5,4.75 0 1,0 -17.0,0z" />
+        <path fill="#FF7A9A" fill-opacity="0.50" d="M64.5,31.5a3,1.6 0 1,0 6,0a3,1.6 0 1,0 -6,0zM89.5,31.5a3,1.6 0 1,0 6,0a3,1.6 0 1,0 -6,0z" />
+        <path fill="#9FD07E" fill-opacity="1.00" d="M67.9,24.9Q72.5,15.8 77.1,24.9Q72.5,31.5 67.9,24.9zM82.9,24.9Q87.5,15.8 92.1,24.9Q87.5,31.5 82.9,24.9z" />
+        <path fill="#141414" fill-opacity="1.00" d="M70.6,24.6a1.4,3.3 0 1,0 2.8,0a1.4,3.3 0 1,0 -2.8,0zM85.6,24.6a1.4,3.3 0 1,0 2.8,0a1.4,3.3 0 1,0 -2.8,0z" />
+        <path fill="#FFFFFF" fill-opacity="0.95" d="M69.7,22.9a1.2,1.2 0 1,0 2.4,0a1.2,1.2 0 1,0 -2.4,0zM84.7,22.9a1.2,1.2 0 1,0 2.4,0a1.2,1.2 0 1,0 -2.4,0z" />
+        <path fill="#FFFFFF" fill-opacity="0.70" d="M72.45,25.8a0.55,0.55 0 1,0 1.1,0a0.55,0.55 0 1,0 -1.1,0zM87.45,25.8a0.55,0.55 0 1,0 1.1,0a0.55,0.55 0 1,0 -1.1,0z" />
+        <path fill="#DC8F8C" fill-opacity="1.00" d="M78.5,30.1L81.5,30.1L80,32.2z" />
+        <path stroke="#352C24" stroke-opacity="1.00" fill="none" stroke-width="0.9" stroke-linecap="round" d="M76.5,33Q78.19999999999999,34.2 80,32.4Q81.80000000000001,34.2 83.5,33" />
+        <path stroke="#FFFFFF" stroke-opacity="0.70" fill="none" stroke-width="0.55" stroke-linecap="round" d="M76,30.5L63,29M76,31.5L63,31.5M76,32.5L63,34M84,30.5L97,29M84,31.5L97,31.5M84,32.5L97,34" />
+    </g>
+</svg>

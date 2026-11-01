@@ -33,6 +33,23 @@ class Settings(context: Context) {
             prefs.edit().putString("turnwise_url", value).apply()
         }
 
+    /** The waker phone's HTTPS address, e.g. https://waker.tailnet.ts.net:8491 */
+    var wakerUrl: String
+        get() = prefs.getString("waker_url", DEFAULT_WAKER_URL) ?: DEFAULT_WAKER_URL
+        set(value) {
+            prefs.edit().putString("waker_url", value).apply()
+        }
+
+    /** Where Listen records: "phone" (this device's mic) or "cardputer" (the Cardputer on the network). */
+    var listenSource: String
+        get() = prefs.getString("listen_source", "phone") ?: "phone"
+        set(value) { prefs.edit().putString("listen_source", value).apply() }
+
+    /** The Cardputer's base URL, e.g. http://192.168.100.18; blank = find it over mDNS. */
+    var cardputerUrl: String
+        get() = prefs.getString("cardputer_url", "") ?: ""
+        set(value) { prefs.edit().putString("cardputer_url", value.trim().trimEnd('/')).apply() }
+
     /** Turnwise note id for a saved clip, keyed by its MediaStore id. */
     fun noteId(mediaId: Long): String? = notes.getString(mediaId.toString(), null)
     fun setNoteId(mediaId: Long, noteId: String) {
@@ -56,6 +73,7 @@ class Settings(context: Context) {
         }
 
     companion object {
-        const val DEFAULT_TURNWISE_URL = ""   // set in the app: your Tailscale Serve address
+        const val DEFAULT_TURNWISE_URL = "https://abhyuday-samadder-com.tail09c0ca.ts.net:8446"
+        const val DEFAULT_WAKER_URL = "https://waker.tail09c0ca.ts.net:8491"
     }
 }
