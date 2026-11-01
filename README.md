@@ -7,7 +7,7 @@ Self-hosted meeting transcription for conversations that switch between Hindi an
 I built it after noticing what transcription tools do with conversations that switch between Hindi and English: they either force the whole thing into English, write it in Devanagari, or send the audio to someone else's cloud. What I wanted was narrower than "AI meeting notes": capture who said what, verbatim, in the script people actually type in, and be able to ask questions about it later from Claude Code.
 
 <p>
-<img src="docs/android.gif" width="270" alt="The Android app (an earlier build, before the cats): the home screen with the two mascots taking turns to talk, a note with its summary and a transcript that highlights each turn as it plays, a chat answer with the turns it used, and the Listen tab where the mascots listen while a moment is picked from the loudness wave">
+<img src="docs/android.gif" width="270" alt="The Android app: the Listen tab with the Cardputer as the source and Frito and Ramona asleep in the recorder card, the notes list with the cats chatting, a note whose transcript highlights each turn as it plays, a chat answer with the moments it drew on, and Settings showing the GPU box and the LLM box online with their Wake and Off buttons">
 &nbsp;
 <img src="docs/app.gif" width="270" alt="The phone app: the home screen with two small monsters taking turns to talk, a transcript with each speaker in their own colour, then a chat question answered from the recordings with the turns it used listed underneath, and one of them playing in a small player with the words on screen">
 &nbsp;
