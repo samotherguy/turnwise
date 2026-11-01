@@ -138,7 +138,7 @@ namespace {
   }
   void drawAbout() {
     title("About");
-    line(46, "Turnwise Cardputer 0.3", WHITE);
+    line(46, "Turnwise Cardputer 0.4", WHITE);
     line(60, "uptime " + String(millis() / 1000) + " s   heap " + String(ESP.getFreeHeap() / 1024) + " KB");
     line(74, "card " + String(store::totalBytes() / 1e9, 1) + " GB, " + String(store::freeBytes() / 1e9, 1) + " GB free");
     line(88, "mic gain: serial 'micgain'   wifi: serial 'wifi add'");

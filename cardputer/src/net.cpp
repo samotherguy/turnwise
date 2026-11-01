@@ -35,7 +35,7 @@ namespace {
       ",\"chunks\":" + store::list().size() + ",\"overruns\":" + r.overruns + ",\"writeErrors\":" + r.writeErrors +
       ",\"sdFree\":" + String((double)store::freeBytes(), 0) + ",\"sdTotal\":" + String((double)store::totalBytes(), 0) +
       ",\"battery\":" + M5.Power.getBatteryLevel() + ",\"time\":" + String((long)time(nullptr)) + ",\"uptime\":" + (millis() / 1000) +
-      ",\"ip\":" + q(WiFi.localIP().toString()) + ",\"name\":" + q(HOSTNAME) + ",\"version\":\"0.2\"");
+      ",\"ip\":" + q(WiFi.localIP().toString()) + ",\"name\":" + q(HOSTNAME) + ",\"version\":\"0.4\"");
   }
   void routes() {
     server.on("/api/status", HTTP_GET, [] { server.send(200, "application/json", statusJson()); });
