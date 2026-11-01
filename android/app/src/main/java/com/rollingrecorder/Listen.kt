@@ -94,6 +94,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.material3.LinearProgressIndicator
+import java.io.IOException
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -245,7 +248,15 @@ fun ListenTab(ui: ListenUi, player: PreviewPlayer, snackbar: SnackbarHostState, 
     val s = ui.sel
     val playheadMs = if (s != null && player.ready && player.title == "Selection") s.first + player.positionMs else null
 
+    var source by remember { mutableStateOf(settings.listenSource) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = padding, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Pill("Phone", source == "phone") { source = "phone"; settings.listenSource = "phone" }
+                Pill("Cardputer", source == "cardputer") { source = "cardputer"; settings.listenSource = "cardputer" }
+            }
+        }
+        if (source == "cardputer") item { CardputerPanel(settings, snackbar, openNote) }
         item {
             Hero(
                 status = status,
@@ -346,6 +357,76 @@ fun ListenTab(ui: ListenUi, player: PreviewPlayer, snackbar: SnackbarHostState, 
     }
 }
 
+/** The Cardputer as the listener: what it holds, and send the last N minutes through Turnwise. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun CardputerPanel(settings: Settings, snackbar: SnackbarHostState, openNote: (String) -> Unit) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var base by remember { mutableStateOf(settings.cardputerUrl) }
+    var finding by remember { mutableStateOf(false) }
+    var findTick by remember { mutableIntStateOf(0) }
+    var minutes by remember { mutableIntStateOf(30) }
+    var busy by remember { mutableStateOf<String?>(null) }
+    var progress by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(findTick) {
+        if (base.isBlank() || findTick > 0) {
+            finding = true
+            Cardputer.discover(context)?.let { base = it; settings.cardputerUrl = it }
+            finding = false
+        }
+    }
+    val polled = rememberPolled("cardputer|$base", every = { 5_000L }) {
+        if (base.isBlank()) throw IOException("Cardputer not found on this network")
+        Cardputer.status(base)
+    }
+    val st = polled.value
+    Panel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionTitle("Cardputer")
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { findTick++ }, enabled = !finding) { Text(if (finding) "Looking…" else "Find", color = Green) }
+        }
+        when {
+            finding && st == null -> Text("Looking for the Cardputer on this network…", style = MaterialTheme.typography.bodySmall)
+            st == null -> Text(polled.error ?: "Connecting…", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9B9B))
+            else -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(10.dp).background(if (st.recording) Color(0xFFFF4D4D) else Mist, CircleShape))
+                    Spacer(Modifier.width(10.dp))
+                    Text(if (st.recording) "Listening · ${st.chunks} chunks, about ${fmtDur(st.chunks * 5 * 60_000L)} buffered" else "Not listening", style = MaterialTheme.typography.bodyLarge)
+                }
+                Text("Battery ${st.battery}% · card ${st.sdFree / 1_000_000_000} GB free · ${base.removePrefix("http://")}", style = MaterialTheme.typography.bodySmall)
+                if (polled.error != null) Text(polled.error!!, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9B9B))
+                Text("Send the last", style = MaterialTheme.typography.bodyLarge)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(15, 30, 60, 120).forEach { m -> Pill(if (m < 60) "$m min" else "${m / 60} h", minutes == m) { minutes = m } }
+                }
+                Button(
+                    onClick = {
+                        busy = "Starting"; progress = 0f
+                        scope.launch {
+                            try {
+                                val up = Cardputer.sendLast(context, base, minutes) { label, p -> busy = label; progress = p }
+                                Bus.notesVersion++
+                                if (up.duplicate) snackbar.showSnackbar("Already transcribed. Opening it.")
+                                openNote(up.id)
+                            } catch (t: Throwable) { snackbar.showSnackbar("Could not send: ${errorText(t)}") }
+                            busy = null
+                        }
+                    },
+                    enabled = busy == null && st.recording || busy == null && st.chunks > 0, modifier = Modifier.fillMaxWidth().height(48.dp),
+                ) {
+                    if (busy != null) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.Black) else Icon(Icons.Rounded.Send, null)
+                    Spacer(Modifier.width(8.dp)); Text(busy ?: "Send to Turnwise")
+                }
+                if (busy != null) LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth(), color = Green)
+                Text("Pulls the chunks over Wi-Fi, joins them, and sends one recording. The phone and the Cardputer must be on the same network.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
 /** Start listening, asking for the microphone (and notifications, so Stop stays reachable) first. */
 @Composable
 fun rememberStartRecording(snackbar: SnackbarHostState): () -> Unit {
@@ -388,7 +469,7 @@ fun ClipsTab(player: PreviewPlayer, snackbar: SnackbarHostState, padding: Paddin
         if (saved?.isEmpty() == true) {
             item {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 24.dp)) {
-                    Duo(Mood.SLEEP, Modifier.width(200.dp))
+                    Duo(Mood.SLEEP, Modifier.width(200.dp), caption = true)
                     Spacer(Modifier.height(16.dp))
                     Text("No clips yet. Pick a moment on the Listen tab and save it; clips also land in Recordings/RollingRecorder.", style = MaterialTheme.typography.bodySmall)
                 }
@@ -454,10 +535,18 @@ fun ListenerSettings(onAddressChanged: () -> Unit) {
         )
         Text("Your Tailscale Serve address for Turnwise. The phone must be on the tailnet.", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = onAddressChanged) { Text("Reconnect", color = Green) }
+        var cardputerUrl by remember { mutableStateOf(settings.cardputerUrl) }
+        OutlinedTextField(
+            value = cardputerUrl,
+            onValueChange = { cardputerUrl = it; settings.cardputerUrl = it },
+            label = { Text("Cardputer address (blank = find it)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
     }
 }
 
-/** Gradient hero where Blip and Bolt act out the recorder's state: listening, paused, asleep. */
+/** Gradient hero where the two cats act out the recorder's state: listening, paused, asleep. */
 @Composable
 private fun Hero(status: Status, subtitle: String, onStart: () -> Unit, onStop: () -> Unit) {
     val top by animateColorAsState(

@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -34,7 +35,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 private class ServerState(val settings: JSONObject, val voices: Map<String, Int>)
@@ -62,6 +65,8 @@ fun SettingsTab(padding: PaddingValues) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = padding, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { PageTitle("Settings") }
         item { Column { ListenerSettings(onAddressChanged = { reconnect++ }) } }
+        item { PowerPanel() }
+        item { CardputerGuide() }
         polled.error?.let { item { Banner(it, error = true) } }
         saveError?.let { item { Banner("Not saved: $it", error = true) } }
         if (s != null) {
@@ -158,6 +163,97 @@ fun SettingsTab(padding: PaddingValues) {
 }
 
 private fun Double.round2() = Math.round(this * 100) / 100.0
+
+/** How the Cardputer recorder fits in, for the Settings page. */
+@Composable
+private fun CardputerGuide() {
+    var open by remember { mutableStateOf(false) }
+    Panel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SectionTitle("Cardputer")
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = { open = !open }) { Text(if (open) "Hide" else "Guide", color = Green) }
+        }
+        Text("A pocket recorder that listens all day and keeps the last 10 hours on its card. Use it instead of the phone's mic from the Listen tab.", style = MaterialTheme.typography.bodySmall)
+        if (open) {
+            listOf(
+                "Listen tab" to "Switch the source to Cardputer. The app finds it on the same Wi-Fi (home network or this phone's hotspot \"Wifi\"), shows what it holds, and Send pulls the last 15 min to 2 h and sends it to Turnwise like any recording.",
+                "On the device" to "The top bar shows REC while it records, the time, battery and Wi-Fi. Recording never stops, whatever is on screen.",
+                "Home menu" to "Arrows and Enter, or a number, open an app. The ` key (top left, esc) always returns home.",
+                "1 Recorder" to "Elapsed time and what is on the card. m keeps the last 30 minutes safe from the rolling buffer. r stops and starts listening.",
+                "2 Aircon" to "Mitsubishi Electric remote through the infrared LED on the top edge. p power, - and = temperature, m mode, f fan, Enter resends.",
+                "3 GPU box" to "Shows whether com and com-2 are on. w wakes com, l wakes com-2, o twice shuts com down. Works through the waker phone at home.",
+                "4 Bookmark" to "Type a label and press Enter: it is stamped with the time and keeps that chunk. Useful mid-meeting.",
+                "5 Clock" to "A big clock, the date, and how much is buffered.",
+                "6 Network" to "Which Wi-Fi it is on and its address. w turns Wi-Fi off to save battery; the app then cannot reach it until you turn it back on.",
+                "Charging" to "Expect close to 10 hours on a charge with Wi-Fi on. Charge over USB-C every night; it recovers and resumes recording by itself.",
+                "Address" to "Blank means the app looks for it over the network. If it cannot be found, type the address shown in the device's Network app into the field under Listener settings.",
+            ).forEach { (k, v) ->
+                Text(k, style = MaterialTheme.typography.bodyLarge)
+                Text(v, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+/** Wake or shut down the Turnwise box (com) and the LLM box (com-2) through the waker phone. */
+@Composable
+private fun PowerPanel() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settings = remember { Settings(context) }
+    val scope = rememberCoroutineScope()
+    var wakerUrl by remember { mutableStateOf(settings.wakerUrl) }
+    var msg by remember { mutableStateOf<String?>(null) }
+    var confirmOff by remember { mutableStateOf<Boolean?>(null) }   // false = com, true = com-2
+    val polled = rememberPolled("waker|$wakerUrl", cacheKey = "waker", every = { 5_000L }) { withContext(Dispatchers.IO) { Waker.status() } }
+    val st = polled.value
+
+    fun run(label: String, action: () -> String?) {
+        scope.launch {
+            msg = label
+            msg = try { withContext(Dispatchers.IO) { action() } } catch (t: Throwable) { errorText(t) }
+            polled.refresh()
+        }
+    }
+
+    @Composable
+    fun Machine(name: String, role: String, up: Boolean?, llm: Boolean) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(10.dp).background(when (up) { true -> Green; false -> Color(0xFFFF6B6B); null -> Mist }, CircleShape))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(name, style = MaterialTheme.typography.bodyLarge)
+                Text(when (up) { true -> "Online · $role"; false -> "Off · $role"; null -> role }, style = MaterialTheme.typography.bodySmall)
+            }
+            TextButton(enabled = up == false, onClick = { run("Waking $name…") { if (llm) { Waker.wake(true); "Wake sent to $name." } else if (Waker.wakeAndWait()) "$name is up." else "$name did not come up. Try again." } }) { Text("Wake", color = if (up == false) Green else Mist) }
+            TextButton(enabled = up == true, onClick = { confirmOff = llm }) { Text("Off", color = if (up == true) MaterialTheme.colorScheme.error else Mist) }
+        }
+    }
+
+    Panel {
+        SectionTitle("Power")
+        Machine("com", "Turnwise server", st?.server, llm = false)
+        Machine("com-2", "LLM box", st?.llm, llm = true)
+        polled.error?.let { Text("Waker: $it", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9B9B)) }
+        msg?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        OutlinedTextField(
+            value = wakerUrl,
+            onValueChange = { wakerUrl = it; settings.wakerUrl = it },
+            label = { Text("Waker address") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text("The always-on phone that wakes the server. When Turnwise does not answer, the app asks it to wake the box and waits.", style = MaterialTheme.typography.bodySmall)
+    }
+
+    confirmOff?.let { llm ->
+        val name = if (llm) "com-2" else "com"
+        ConfirmDialog("Shut down $name?", "It powers off in a few seconds. Nothing wakes it again until you tap Wake or send a recording.", "Shut down", true, { confirmOff = null }) {
+            confirmOff = null
+            run("Shutting down $name…") { Waker.off(llm)?.let { "Could not shut down $name: $it" } ?: "$name is shutting down." }
+        }
+    }
+}
 
 @Composable
 private fun Stepper(label: String, sub: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {

@@ -110,10 +110,16 @@ object Api {
     private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
 
     // 20 s cap like the web app: a stalled tunnel becomes a retry banner, never a hang.
+    // A connection failure never wakes the box on its own (the recorder is used offline): it only asks the waker
+    // whether the box is off, so screens can say so and offer a Wake button.
     private suspend fun call(method: String, path: String, body: JSONObject? = null): String = withContext(Dispatchers.IO) {
         if (!base.startsWith("http")) throw IOException("Set the Turnwise address in Settings")
+        try { once(method, path, body).also { Waker.noteUp() } } catch (e: IOException) { if (e !is ApiError && Waker.isServerOff()) throw ServerOff() else throw e }
+    }
+
+    private fun once(method: String, path: String, body: JSONObject?): String {
         val c = URL("$base/api$path").openConnection() as HttpURLConnection
-        try {
+        return try {
             c.requestMethod = method
             c.connectTimeout = 20_000
             c.readTimeout = 20_000
