@@ -73,7 +73,7 @@ class Settings(context: Context) {
         }
 
     companion object {
-        const val DEFAULT_TURNWISE_URL = "https://<box>.<tailnet>.ts.net:8446"
-        const val DEFAULT_WAKER_URL = "https://waker.<tailnet>.ts.net:8491"
+        const val DEFAULT_TURNWISE_URL = BuildConfig.TURNWISE_URL   // from local.properties at build time
+        const val DEFAULT_WAKER_URL = BuildConfig.WAKER_URL
     }
 }
