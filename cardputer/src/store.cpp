@@ -7,6 +7,9 @@
 // Cardputer microSD: SPI, SCK 40, MISO 39, MOSI 14, CS 12
 static constexpr int SD_SCK = 40, SD_MISO = 39, SD_MOSI = 14, SD_CS = 12;
 static bool s_mounted = false;
+static SemaphoreHandle_t s_lock = xSemaphoreCreateRecursiveMutex();
+void store::lock() { xSemaphoreTakeRecursive(s_lock, portMAX_DELAY); }
+void store::unlock() { xSemaphoreGiveRecursive(s_lock); }
 static SPIClass s_spi(FSPI);                  // the display sits on SPI3 (HSPI); the card gets SPI2 (FSPI)
 static std::vector<String> s_keep;            // names flagged to keep, mirrored in /rec/keep.txt
 
@@ -26,6 +29,7 @@ static void saveKeep() {
 static bool isKept(const String& n) { return std::find(s_keep.begin(), s_keep.end(), n) != s_keep.end(); }
 
 bool store::begin() {
+  Guard g;
   s_spi.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
   s_mounted = SD.begin(SD_CS, s_spi, 4000000);                                 // slow first; FAT32 up to 32 GB (no exFAT)
   logring::add(String("") + sprintfS("[sd] mount=%s type=%d size=%.1fGB", s_mounted ? "ok" : "fail", (int)SD.cardType(), SD.cardSize() / 1e9));
@@ -34,15 +38,17 @@ bool store::begin() {
   loadKeep();
   return true;
 }
-bool store::remount() { SD.end(); s_mounted = false; s_spi.end(); delay(50); invalidate(); return begin(); }
+bool store::remount() {
+  Guard g; SD.end(); s_mounted = false; s_spi.end(); delay(50); invalidate(); return begin(); }
 bool store::mounted() { return s_mounted; }
-uint64_t store::freeBytes() { return s_mounted ? SD.totalBytes() - SD.usedBytes() : 0; }
-uint64_t store::totalBytes() { return s_mounted ? SD.totalBytes() : 0; }
+uint64_t store::freeBytes() { Guard g; return s_mounted ? SD.totalBytes() - SD.usedBytes() : 0; }
+uint64_t store::totalBytes() { Guard g; return s_mounted ? SD.totalBytes() : 0; }
 String store::path(const String& name) { return String(DIR) + "/" + name; }
 
 static std::vector<store::Chunk> s_cache; static uint32_t s_cacheAt = 0; static bool s_cacheValid = false;
 void store::invalidate() { s_cacheValid = false; }
 std::vector<store::Chunk> store::list() {
+  Guard g;
   // Listing a FAT32 directory on a 64 GB card is slow and holds the filesystem lock, which starves the
   // recorder's writes; the screen and the API ask several times a second, so serve them from a cache.
   if (s_cacheValid && millis() - s_cacheAt < 5000) return s_cache;
@@ -62,6 +68,7 @@ std::vector<store::Chunk> store::list() {
   return out;
 }
 bool store::keep(const String& name, bool on) {
+  Guard g;
   if (!s_mounted) return false;
   invalidate();
   if (on && !isKept(name)) s_keep.push_back(name);
@@ -70,11 +77,13 @@ bool store::keep(const String& name, bool on) {
   return true;
 }
 bool store::remove(const String& name) {
+  Guard g;
   if (!s_mounted) return false;
   keep(name, false); invalidate();
   return SD.remove(path(name));
 }
 size_t store::prune() {
+  Guard g;
   auto all = list();
   size_t over = all.size() > MAX_CHUNKS ? all.size() - MAX_CHUNKS : 0, deleted = 0;
   for (auto& c : all) {
@@ -86,6 +95,7 @@ size_t store::prune() {
   return deleted;
 }
 size_t store::markLast(uint32_t minutes) {
+  Guard g;
   auto all = list();
   size_t n = 0; uint32_t covered = 0;
   for (auto it = all.rbegin(); it != all.rend() && covered < minutes * 60; ++it) {

@@ -50,13 +50,23 @@ namespace {
     server.on("/api/chunk", HTTP_GET, [] {
       String name = server.arg("name");
       if (!name.length() || name.indexOf('/') >= 0) { server.send(400, "text/plain", "name?"); return; }
-      File f = SD.open(store::path(name));
+      store::lock(); File f = SD.open(store::path(name)); size_t total = f ? f.size() : 0; store::unlock();
       if (!f) { server.send(404, "text/plain", "no such chunk"); return; }
       server.sendHeader("Content-Disposition", "attachment; filename=\"" + name + "\"");
-      server.streamFile(f, "audio/wav"); f.close();
+      // Stream by hand: each read holds the card lock briefly, then the recorder's writer can take its turn.
+      server.setContentLength(total); server.send(200, "audio/wav", "");
+      static uint8_t buf[8192]; WiFiClient client = server.client(); size_t sent = 0;
+      while (sent < total && client.connected()) {
+        size_t n; { store::Guard g; n = f.read(buf, sizeof buf); }
+        if (n == 0) break;
+        if (client.write(buf, n) != n) break;
+        sent += n;
+      }
+      { store::Guard g; f.close(); }
+      if (sent < total) client.stop();          // never leave a client waiting for bytes that will not come
     });
     server.on("/api/log", HTTP_GET, [] { server.send(200, "text/plain", logring::dump()); });
-    server.on("/api/marks", HTTP_GET, [] { File f = SD.open("/rec/marks.txt"); if (!f) { server.send(200, "text/plain", ""); return; } server.streamFile(f, "text/plain"); f.close(); });
+    server.on("/api/marks", HTTP_GET, [] { store::Guard g; File f = SD.open("/rec/marks.txt"); if (!f) { server.send(200, "text/plain", ""); return; } server.streamFile(f, "text/plain"); f.close(); });
     server.on("/api/keep", HTTP_POST, [] { server.send(store::keep(server.arg("name"), server.arg("on") != "0") ? 200 : 500, "application/json", "{\"ok\":true}"); });
     server.on("/api/rm", HTTP_POST, [] { server.send(store::remove(server.arg("name")) ? 200 : 500, "application/json", "{\"ok\":true}"); });
     server.on("/api/mark", HTTP_POST, [] { server.send(200, "application/json", json("\"kept\":" + String(store::markLast(server.arg("minutes").toInt() > 0 ? server.arg("minutes").toInt() : 30)))); });

@@ -40,11 +40,13 @@ namespace {
   String input, marksCache; bool marksDirty = true;
   void saveMark(const String& label) {
     time_t now = time(nullptr); char ts[24]; strftime(ts, sizeof ts, "%Y-%m-%d %H:%M:%S", localtime(&now));
+    store::Guard g;
     File f = SD.open("/rec/marks.txt", FILE_APPEND); if (f) { f.printf("%s\t%s\t%s\n", ts, recorder::status().chunk.c_str(), label.c_str()); f.close(); }
     store::keep(recorder::status().chunk, true); marksDirty = true;
     Serial.printf("[mark] %s %s\n", ts, label.c_str());
   }
   String lastMarks(int n) {
+    store::Guard g;
     File f = SD.open("/rec/marks.txt"); if (!f) return "";
     String lines[8]; int k = 0;
     while (f.available()) { lines[k % 8] = f.readStringUntil('\n'); k++; }

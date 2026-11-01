@@ -26,12 +26,14 @@ namespace {
     f.seek(0); f.write(h, 44);
   }
   void closeChunk() {
+    store::Guard g;
     if (!g_file) return;
     writeHeader(g_file, g_bytes); g_file.close(); g_chunks++; store::invalidate();
     logring::add(String("") + sprintfS("[rec] closed %s %u bytes", g_name.c_str(), g_bytes));
     size_t pruned = store::prune(); if (pruned) logring::add(String("") + sprintfS("[rec] pruned %u old chunk(s)", pruned));
   }
   bool openChunk() {
+    store::Guard g;
     g_name = recorder::chunkName(); g_bytes = 0; g_started = millis();
     g_file = SD.open(store::path(g_name), FILE_WRITE);
     if (!g_file) { logring::add(String("") + sprintfS("[rec] cannot open %s", g_name.c_str())); g_werr++; return false; }
@@ -56,14 +58,22 @@ namespace {
       if (g_run && store::mounted()) {
         if (!g_file || g_rotate || g_bytes >= recorder::RATE * 2 * recorder::CHUNK_SECONDS) { g_rotate = false; closeChunk(); openChunk(); }
         if (g_file) {
-          size_t n = g_file.write((uint8_t*)buf, BUF_SAMPLES * 2);
+          // A write can come back short while the Wi-Fi side is streaming a chunk off the card (the filesystem lock
+          // times out). That is transient: retry the same buffer a few times before calling it a failure.
+          size_t n = 0;
+          for (int attempt = 0; attempt < 4 && n != BUF_SAMPLES * 2; attempt++) {
+            if (attempt) vTaskDelay(pdMS_TO_TICKS(30));
+            store::Guard g;
+            n = g_file.write((uint8_t*)buf, BUF_SAMPLES * 2);
+            if (n != BUF_SAMPLES * 2 && n > 0) { g_file.seek(44 + g_bytes); }      // partial write: rewind to the buffer's start
+          }
           if (n == BUF_SAMPLES * 2) { g_bytes += n; g_consecFail = 0; }
           else {
             g_werr++;
-            // A card that errors once stays dead in the SD driver until it is re-initialised. Remount and open a fresh chunk.
-            if (++g_consecFail >= 3) { logring::add(String("") + sprintfS("[rec] %u failed writes, remounting the card", g_consecFail)); g_file.close(); g_consecFail = 0; vTaskDelay(pdMS_TO_TICKS(500)); store::remount(); if (store::mounted()) openChunk(); }
+            // A card that errors for real stays dead in the SD driver until it is re-initialised. Remount and open a fresh chunk.
+            if (++g_consecFail >= 6) { logring::add(String("") + sprintfS("[rec] %u failed writes, remounting the card", g_consecFail)); g_file.close(); g_consecFail = 0; vTaskDelay(pdMS_TO_TICKS(500)); store::remount(); if (store::mounted()) openChunk(); }
           }
-          if ((g_bytes / (BUF_SAMPLES * 2)) % 32 == 0) g_file.flush();      // every ~4 s, so a crash loses little
+          if ((g_bytes / (BUF_SAMPLES * 2)) % 32 == 0) { store::Guard g; g_file.flush(); }      // every ~4 s, so a crash loses little
         }
       }
       xQueueSend(g_free, &buf, 0);
