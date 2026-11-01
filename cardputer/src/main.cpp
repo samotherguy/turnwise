@@ -24,6 +24,7 @@ static void printStatus() {
 }
 
 static void dump(const String& name) {
+  store::Guard g;
   File f = SD.open(store::path(name));
   if (!f) { Serial.println("ERR no such chunk"); return; }
   Serial.printf("DUMP %s %u\n", name.c_str(), (unsigned)f.size());

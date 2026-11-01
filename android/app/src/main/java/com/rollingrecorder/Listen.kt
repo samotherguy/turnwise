@@ -256,8 +256,16 @@ fun ListenTab(ui: ListenUi, player: PreviewPlayer, snackbar: SnackbarHostState, 
                 Pill("Cardputer", source == "cardputer") { source = "cardputer"; settings.listenSource = "cardputer" }
             }
         }
-        if (source == "cardputer") item { CardputerPanel(settings, snackbar, openNote) }
-        item {
+        if (source == "cardputer") {
+            item { CardputerPanel(settings, snackbar, openNote) }
+            if (status != Status.STOPPED) item {
+                Panel {
+                    Text("The phone is still listening too", style = MaterialTheme.typography.titleMedium)
+                    Text("Both buffers fill in parallel. Switch to Phone to stop it or to send from it.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+        if (source == "phone") item {
             Hero(
                 status = status,
                 subtitle = if (oldestStart == null) "Nothing buffered yet"
@@ -266,7 +274,7 @@ fun ListenTab(ui: ListenUi, player: PreviewPlayer, snackbar: SnackbarHostState, 
                 onStop = { RecorderService.stop(context) },
             )
         }
-        if (!batteryUnrestricted) {
+        if (source == "phone" && !batteryUnrestricted) {
             item {
                 Panel {
                     Text("Keep it alive", style = MaterialTheme.typography.titleMedium)
@@ -284,7 +292,7 @@ fun ListenTab(ui: ListenUi, player: PreviewPlayer, snackbar: SnackbarHostState, 
                 }
             }
         }
-        item {
+        if (source == "phone") item {
             Panel {
                 SectionTitle("Find the moment")
                 if (oldestStart == null) {
@@ -392,7 +400,7 @@ private fun CardputerPanel(settings: Settings, snackbar: SnackbarHostState, open
         }
         when {
             finding && st == null -> Text("Looking for the Cardputer on this network…", style = MaterialTheme.typography.bodySmall)
-            st == null -> Text(polled.error ?: "Connecting…", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9B9B))
+            st == null -> Text(if (polled.error != null) "Cardputer not found. Same Wi-Fi as the phone? Tap Find, or set its address in Settings." else "Connecting…", style = MaterialTheme.typography.bodySmall, color = if (polled.error != null) Color(0xFFFF9B9B) else Mist)
             else -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(10.dp).background(if (st.recording) Color(0xFFFF4D4D) else Mist, CircleShape))
@@ -400,7 +408,7 @@ private fun CardputerPanel(settings: Settings, snackbar: SnackbarHostState, open
                     Text(if (st.recording) "Listening · ${st.chunks} chunks, about ${fmtDur(st.chunks * 5 * 60_000L)} buffered" else "Not listening", style = MaterialTheme.typography.bodyLarge)
                 }
                 Text("Battery ${st.battery}% · card ${st.sdFree / 1_000_000_000} GB free · ${base.removePrefix("http://")}", style = MaterialTheme.typography.bodySmall)
-                if (polled.error != null) Text(polled.error!!, style = MaterialTheme.typography.bodySmall, color = Color(0xFFFF9B9B))
+                if (polled.error != null) Text("Cardputer busy or out of reach, retrying…", style = MaterialTheme.typography.bodySmall, color = Mist)
                 Text("Send the last", style = MaterialTheme.typography.bodyLarge)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(15, 30, 60, 120).forEach { m -> Pill(if (m < 60) "$m min" else "${m / 60} h", minutes == m) { minutes = m } }

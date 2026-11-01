@@ -4,6 +4,11 @@
 
 // The rolling chunk store on the SD card: /rec/<name>.wav, oldest deleted first unless kept.
 namespace store {
+  // Every FatFS call goes through this lock: the writer (high priority) and the Wi-Fi streaming, listing,
+  // bookmarks and serial dumps never touch the card at the same time.
+  void lock();
+  void unlock();
+  struct Guard { Guard() { lock(); } ~Guard() { unlock(); } };
   constexpr const char* DIR = "/rec";
   constexpr size_t MAX_CHUNKS = 120;          // 120 x 5 min = 10 h
   struct Chunk { String name; uint32_t size; bool kept; };
