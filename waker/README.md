@@ -13,14 +13,14 @@ This file is the full build log with every dead end, so the next install takes a
 |---|---|---|
 | waker service | `/usr/local/bin/waker.py`, `/etc/waker.conf`, `/etc/init.d/waker` (OpenRC, `default` runlevel) | `GET /` mobile page with Wake/Off buttons, `GET /status`, `POST /wake`, `POST /wake/llm`, `POST /off`, `POST /off/llm`; port 8490 |
 | wake-on-demand proxy | same process, `127.0.0.1:8447` | forwards everything to `UPSTREAM` (the box's Turnwise HTTPS URL), wakes the box first and holds the request until `/api/me` answers (`WAKE_WAIT` 150 s) |
-| Tailscale Serve | `https://waker.tail09c0ca.ts.net:8446` → proxy, `:8491` → waker page/API | persisted in tailscaled state (`tailscale serve --bg --https=PORT http://127.0.0.1:PORT`) |
+| Tailscale Serve | `https://waker.<tailnet>.ts.net:8446` → proxy, `:8491` → waker page/API | persisted in tailscaled state (`tailscale serve --bg --https=PORT http://127.0.0.1:PORT`) |
 | firewall | `/etc/nftables.d/50-waker.nft` | accepts 41641/udp, anything from `tailscale0`, 8490/tcp, 22/tcp |
 | root | `/etc/doas.d/abhyuday.conf`: `permit nopass abhyuday` | `sudo` is a doas shim; passwordless since the reset below |
 | poweroff key | `/root/.ssh/waker_key` | on the box its public key is pinned to `/usr/local/bin/waker-poweroff` (see `box_poweroff_setup.sh`) |
-| hosts | `/etc/hosts`: `100.118.250.80 abhyuday-samadder-com.tail09c0ca.ts.net` | MagicDNS does not resolve on the phone; Tailscale Serve needs the right SNI, so an IP would get a TLS alert |
+| hosts | `/etc/hosts`: `100.118.250.80 <box>.<tailnet>.ts.net` | MagicDNS does not resolve on the phone; Tailscale Serve needs the right SNI, so an IP would get a TLS alert |
 
 Addresses: Wi-Fi `192.168.100.16` (SSID `HUAWEI-8PnH`, same /24 as the box; the `-6G` SSID is 6 GHz and unusable),
-Tailscale `100.101.41.32` / `waker.tail09c0ca.ts.net`. Box: `192.168.100.2`, MAC `00:10:f3:a1:5f:7a`,
+Tailscale `100.101.41.32` / `waker.<tailnet>.ts.net`. Box: `192.168.100.2`, MAC `00:10:f3:a1:5f:7a`,
 Tailscale `100.118.250.80`. LLM box MAC `00:10:f3:a1:5f:ad`, Tailscale `100.73.147.59`.
 
 Files in this directory are the sources: `waker.py`, `waker.conf` (template), `waker.initd`, `50-waker.nft`,
@@ -154,7 +154,7 @@ The install password lived only in a scratch file that a reboot wiped. Recovery 
 ## Turnwise Android app
 
 `Waker.kt` in the app repo (`~/personal_projects/repos/turnwise-listener`). Settings → Power panel shows com and
-com-2 with Wake/Off; `wakerUrl` defaults to `https://waker.tail09c0ca.ts.net:8491`. Rules: Listen is the home
+com-2 with Wake/Off; `wakerUrl` defaults to `https://waker.<tailnet>.ts.net:8491`. Rules: Listen is the home
 tab and works offline; entering Notes or Ask, opening a note, or sending a recording wakes the box if it does
 not answer; nothing else ever wakes it, screens just show an "off" banner with a Wake button. The Turnwise
 address stays the box's own URL. Build: `JAVA_HOME=~/.local/opt/jdk17 ANDROID_HOME=~/Android/Sdk ~/.local/opt/gradle-8.9/bin/gradle assembleDebug`;

@@ -173,7 +173,7 @@ cd android
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Then, in the app: Settings → Server → your Tailscale Serve address (the phone must be on the tailnet), Listen → Start, and allow unrestricted battery use when it asks. To have the widget, long-press the home screen and add "Turnwise". The waker address in Settings defaults to the waker phone's tailnet name; the Cardputer address is blank, meaning "find it on the network".
+Put your addresses in `android/local.properties` before building (`turnwise.url=https://<box>.<tailnet>.ts.net:8446`, `waker.url=https://waker.<tailnet>.ts.net:8491`); they become the app's defaults and can still be changed in Settings. Then, in the app: Settings → Server → your Tailscale Serve address (the phone must be on the tailnet), Listen → Start, and allow unrestricted battery use when it asks. To have the widget, long-press the home screen and add "Turnwise". The waker address in Settings defaults to the waker phone's tailnet name; the Cardputer address is blank, meaning "find it on the network".
 
 **Its limits.** Android does not let a microphone service start itself from the background, so after an update or a reboot the app has to be opened once (the notification says so). Detecting that another app has taken the microphone relies on Android's own signal: some phones send exact digital silence in a quiet room, so silence alone is not treated as a takeover. The package is still `com.rollingrecorder`, from its first life as a recorder; renaming it would wipe the buffer and settings of an installed copy.
 
