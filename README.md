@@ -161,7 +161,7 @@ Deleting a known voice also untags that name in every note, so the labels can be
 1. **RecorderService** holds the microphone as a foreground service and comes back if Android kills it.
 2. **ChunkWriter** encodes 30-second AAC chunks at 48 kbps (about 21 MB an hour) and stores one loudness value per second, which draws the wave on the Listen tab.
 3. **ChunkStore** keeps the last 1 to 10 hours, pins chunks while they are being previewed or exported, and keeps a meeting that is being recorded however long it runs.
-4. **Listen** shows the buffer as a loudness wave, with the talking stretches bright. Quick picks zoom in; tap a bright stretch or drag the handles, play it, then save or send. A switch at the top makes the [Cardputer](cardputer) the source instead: the app finds it on the Wi-Fi, shows what it holds, and sends the last 15 minutes to 2 hours from it.
+4. **Listen** shows the buffer as a loudness wave, with the talking stretches bright. Quick picks zoom in; tap a bright stretch or drag the handles, play it, then save or send. A switch at the top makes the [Cardputer](cardputer) the source instead: the tab then shows only the device, what it holds, and sends the last 15 minutes to 2 hours from it, found on the Wi-Fi by itself.
 5. **ClipExporter** joins chunks without re-encoding into `Recordings/RollingRecorder`. Send uploads that file and opens the note in the app.
 6. **One Api client** serves Notes, Ask and Settings: the same REST API as the web app, with the same 20-second cap, and screens that repaint from their last answer while a job runs.
 7. **PreviewPlayer** is the one player for previews, saved clips and note audio streamed from the server, so the mini player shows who is talking and skips turn by turn.
