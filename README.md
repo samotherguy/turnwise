@@ -7,7 +7,7 @@ Self-hosted meeting transcription for conversations that switch between Hindi an
 I built it after noticing what transcription tools do with conversations that switch between Hindi and English: they either force the whole thing into English, write it in Devanagari, or send the audio to someone else's cloud. What I wanted was narrower than "AI meeting notes": capture who said what, verbatim, in the script people actually type in, and be able to ask questions about it later from Claude Code.
 
 <p>
-<img src="docs/android.gif" width="270" alt="The Android app: the home screen with Blip and Bolt taking turns to talk, a note with its summary and a transcript that highlights each turn as it plays, a chat answer with the turns it used, and the Listen tab where the two monsters listen while a moment is picked from the loudness wave">
+<img src="docs/android.gif" width="270" alt="The Android app (an earlier build, before the cats): the home screen with the two mascots taking turns to talk, a note with its summary and a transcript that highlights each turn as it plays, a chat answer with the turns it used, and the Listen tab where the mascots listen while a moment is picked from the loudness wave">
 &nbsp;
 <img src="docs/app.gif" width="270" alt="The phone app: the home screen with two small monsters taking turns to talk, a transcript with each speaker in their own colour, then a chat question answered from the recordings with the turns it used listed underneath, and one of them playing in a small player with the words on screen">
 &nbsp;
@@ -26,6 +26,8 @@ A turn in the transcript looks like this:
 ## What it does
 
 - **A native Android app that is always listening.** It keeps the last hours of audio in a rolling buffer on the phone, so you can send a conversation after it happened: pick the moment on a loudness wave, play it, send it. The whole of Turnwise is native in the app too: notes, transcripts that follow along as they play, the chat, settings, a home-screen widget, and "send the last 15 minutes" in the notification. See [The Android app](#the-android-app).
+- **A pocket recorder for the days the phone stays away.** An M5Stack Cardputer (an ESP32 handheld with a microphone and a card slot) listens all day into a ten-hour rolling buffer and shows up as a second source on the app's Listen tab: pick the last 15 minutes to 2 hours and it is pulled over Wi-Fi and sent like any recording. It also carries a few small apps of its own. See [`cardputer/`](cardputer).
+- **The GPU box can stay off.** An old phone running postmarketOS sits on the tailnet as a "waker": it wakes the machine over Wake-on-LAN when the app, a browser or the Cardputer needs it, and shuts it down again. The app only wakes it for the screens that need it. See [`waker/`](waker).
 - **Record or upload.** A phone-installable web app (PWA) on your Tailscale network: tap to record, share a file from any app, or upload several large files at once with progress. The note's date comes from the file, not the upload.
 - **Noise removal** for phone recordings in cafés and cars, with the attenuation capped so quiet, far-away speakers are not silenced.
 - **Speaker detection** with voice memory: name "Speaker 2" once and the same voice is named automatically in future recordings.
@@ -33,7 +35,7 @@ A turn in the transcript looks like this:
 - **Title, summary and action items** generated from the content.
 - **Folders, a date view, and dedupe by content hash**: re-sending a file you already transcribed just opens it, whatever it is called.
 - **A chat that answers from the recordings** and shows the moments it drew on: tap one and it plays, with the words on screen. Across everything or inside one note, with sessions kept. Answered by the local model or, for the owner, by Claude Code on their own subscription.
-- **Every voice has a colour.** Each person gets a hue, the same in the transcript, the chat sources and the player, so who said what reads at a glance. Two small monsters on the home screen take turns talking, which is the whole idea.
+- **Every voice has a colour.** Each person gets a hue, the same in the transcript, the chat sources and the player, so who said what reads at a glance. Two cats, Frito and Ramona, drawn from the real ones, act out what the app is doing on every page.
 - **Fast on a phone over a tunnel.** Screens paint before the server answers, going back is instant and keeps your place, and no request hangs: after twenty seconds you get a retry banner.
 - **A Claude Code skill** so that "what did we decide about the draft last week?" is answered from the transcripts.
 - **One engine** behind the web app, the CLI and the bulk importer, so every path produces the same note.
@@ -100,6 +102,10 @@ tailscale serve --bg --https=8446 http://127.0.0.1:8470
 ```
 
 The app serves everything itself, including its display font, so the phone talks to your machine and nothing else. Open the address Tailscale gives you on the phone and add it to the home screen. The installed app gets a "Start recording" shortcut on long-press and appears in the share sheet, so a recording made with the phone's own voice recorder can be sent straight to it. For long meetings use the native recorder and share: a browser tab does not survive the screen locking or a phone call.
+
+### Optional: the waker phone and the Cardputer
+
+Both are documented on their own: [`waker/README.md`](waker/README.md) turns an old Android phone into the always-on node that wakes the GPU machine (postmarketOS, lk2nd, the waker service, the Tailscale ACL trap), and [`cardputer/README.md`](cardputer/README.md) covers building, flashing and using the pocket recorder. Neither is required; without them the GPU machine simply stays on.
 
 ### A second machine for the LLM
 
