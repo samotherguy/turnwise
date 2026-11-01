@@ -376,9 +376,12 @@ private fun CardputerPanel(settings: Settings, snackbar: SnackbarHostState, open
             finding = false
         }
     }
+    // The device serves one request at a time, so while a send is streaming chunks the status poll would only
+    // time out and paint a false "can't reach" line: keep showing the last status instead.
+    var last by remember { mutableStateOf<Cardputer.Status?>(null) }
     val polled = rememberPolled("cardputer|$base", every = { 5_000L }) {
         if (base.isBlank()) throw IOException("Cardputer not found on this network")
-        Cardputer.status(base)
+        if (busy != null && last != null) last!! else Cardputer.status(base).also { last = it }
     }
     val st = polled.value
     Panel {
