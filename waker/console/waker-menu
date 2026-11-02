@@ -1,0 +1,22 @@
+#!/bin/sh
+# The waker phone's console menu: runs as the autologin shell on tty1. Everything is one key.
+W=http://127.0.0.1:8490
+st() { wget -qO- -T 3 "$W/status" 2>/dev/null; }
+onoff() { case "$1" in *"\"$2\": true"*) printf '\033[32mON\033[0m';; *) printf '\033[31moff\033[0m';; esac; }
+post() { wget -qO- -T 5 --post-data= "$W/$1" >/dev/null 2>&1 && echo "sent $1" || echo "failed: $1"; sleep 1; }
+key() { stty -icanon -echo min 1 time 0; k=$(timeout 30 dd bs=1 count=1 2>/dev/null); stty icanon echo; echo "$k"; }
+while :; do
+  s=$(st); bat=$(cat /sys/class/power_supply/bq27541-0/capacity 2>/dev/null)
+  clear
+  printf '\033[1m  waker\033[0m   %s   battery %s%%\n\n' "$(date +'%a %d %b %H:%M')" "${bat:-?}"
+  printf '  com     %s\n  com-2   %s\n\n' "$(onoff "$s" server)" "$(onoff "$s" llm)"
+  printf '  1  wake com        3  shut down com\n  2  wake com-2      4  shut down com-2\n\n  t  terminal        s  screen off\n  r  refresh\n\n'
+  printf '  tailnet %s   lan %s\n' "$(ip -4 -o addr show tailscale0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)" "$(ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)"
+  case "$(key)" in
+    1) post wake;; 2) post wake/llm;;
+    3) printf '  shut down com? y/n '; [ "$(key)" = y ] && post off;;
+    4) printf '  shut down com-2? y/n '; [ "$(key)" = y ] && post off/llm;;
+    t) clear; echo "type exit to return to the menu"; PS1='$ ' sh -l;;
+    s) echo 4 | doas tee /sys/class/backlight/994000.dsi.0/bl_power >/dev/null;;
+  esac
+done
