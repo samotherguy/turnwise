@@ -1,3 +1,9 @@
+import java.util.Properties
+
+// Your own addresses live in local.properties (not committed): turnwise.url=https://… and waker.url=https://…
+val local = Properties().apply { rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) } }
+fun prop(key: String, default: String) = (local.getProperty(key) ?: System.getenv(key.uppercase().replace(".", "_")) ?: default).trim().trimEnd('/')
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -10,6 +16,8 @@ android {
 
     defaultConfig {
         applicationId = "com.rollingrecorder"
+        buildConfigField("String", "TURNWISE_URL", "\"${prop("turnwise.url", "https://your-box.your-tailnet.ts.net:8446")}\"")
+        buildConfigField("String", "WAKER_URL", "\"${prop("waker.url", "https://waker.your-tailnet.ts.net:8491")}\"")
         minSdk = 29
         targetSdk = 35
         versionCode = 1
@@ -30,6 +38,7 @@ android {
         jvmTarget = "17"
     }
     buildFeatures {
+        buildConfig = true
         compose = true
     }
 }

@@ -305,6 +305,7 @@ object Voices {
 
 fun errorText(t: Throwable): String = when (t) {
     is ApiError -> t.message ?: "Turnwise answered ${t.code}"
+    is ServerOff -> "Turnwise server is off. Wake it from the banner above."
     is UnknownHostException, is ConnectException, is SocketTimeoutException -> "Can’t reach Turnwise. Is Tailscale on? Retrying…"
     else -> t.message ?: t.javaClass.simpleName
 }

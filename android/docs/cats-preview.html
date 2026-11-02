@@ -1,0 +1,35 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Cats preview</title>
+<style>body{background:#121212;color:#b3b3b3;font:12px system-ui;margin:12px}canvas{display:block;margin-bottom:4px;border-radius:8px}.row{display:flex;gap:10px;align-items:center}</style></head><body>
+<div id="grid"></div>
+<script>
+// ---- DrawScope-alike on canvas 2D; argument order mirrors Compose so the Kotlin port is mechanical ----
+const S=4; let ctx;
+function Offset(x,y){return{x,y}} function Size(w,h){return{w,h}}
+function Path(){const p=new Path2D();return{p,moveTo:(x,y)=>p.moveTo(x,y),lineTo:(x,y)=>p.lineTo(x,y),quadraticTo:(cx,cy,x,y)=>p.quadraticCurveTo(cx,cy,x,y),cubicTo:(a,b,c,d,x,y)=>p.bezierCurveTo(a,b,c,d,x,y),close:()=>p.closePath()}}
+function col(c,a){ if(typeof c==='object'&&c.grad)return c.grad; if(a===undefined)return c; return c.replace(/^#(..)(..)(..)(..)?$/,(m,r,g,b,al)=>`rgba(${parseInt(r,16)},${parseInt(g,16)},${parseInt(b,16)},${a})`)}
+function alpha(c,a){return col(c,a)}
+function radialGradient(colors,center,radius){const g=ctx.createRadialGradient(center.x,center.y,0,center.x,center.y,radius);colors.forEach((c,i)=>g.addColorStop(i/(colors.length-1),c));return{grad:g}}
+function verticalGradient(colors,y0,y1){const g=ctx.createLinearGradient(0,y0,0,y1);colors.forEach((c,i)=>g.addColorStop(i/(colors.length-1),c));return{grad:g}}
+function paint(c,style){ if(style){ctx.strokeStyle=col(c);ctx.lineWidth=style.w;ctx.lineCap=style.cap||'butt';ctx.stroke(cur)}else{ctx.fillStyle=col(c);ctx.fill(cur)}}
+let cur;
+function Stroke(w,cap){return{w,cap}}
+function drawPath(path,c,style){cur=path.p;paint(c,style)}
+function drawOval(c,tl,sz,style){cur=new Path2D();cur.ellipse(tl.x+sz.w/2,tl.y+sz.h/2,sz.w/2,sz.h/2,0,0,Math.PI*2);paint(c,style)}
+function drawCircle(c,r,ctr,style){cur=new Path2D();cur.arc(ctr.x,ctr.y,r,0,Math.PI*2);paint(c,style)}
+function drawArc(c,start,sweep,useCenter,tl,sz,style){cur=new Path2D();const cx=tl.x+sz.w/2,cy=tl.y+sz.h/2;if(useCenter)cur.moveTo(cx,cy);cur.ellipse(cx,cy,sz.w/2,sz.h/2,0,start*Math.PI/180,(start+sweep)*Math.PI/180);if(useCenter)cur.closePath();paint(c,style)}
+function drawLine(c,a,b,w,cap){cur=new Path2D();cur.moveTo(a.x,a.y);cur.lineTo(b.x,b.y);paint(c,{w,cap})}
+function drawRoundRect(c,tl,sz,r,style){cur=new Path2D();cur.roundRect(tl.x,tl.y,sz.w,sz.h,r);paint(c,style)}
+function drawRect(c,tl,sz){cur=new Path2D();cur.rect(tl.x,tl.y,sz.w,sz.h);paint(c)}
+function rotate(deg,pv,f){ctx.save();ctx.translate(pv.x,pv.y);ctx.rotate(deg*Math.PI/180);ctx.translate(-pv.x,-pv.y);f();ctx.restore()}
+function scale(sx,sy,pv,f){ctx.save();ctx.translate(pv.x,pv.y);ctx.scale(sx,sy);ctx.translate(-pv.x,-pv.y);f();ctx.restore()}
+function translate(dx,dy,f){ctx.save();ctx.translate(dx,dy);f();ctx.restore()}
+function withTransform(setup,f){ctx.save();setup({translate:(dx,dy)=>ctx.translate(dx,dy),rotate:(deg,pv)=>{ctx.translate(pv.x,pv.y);ctx.rotate(deg*Math.PI/180);ctx.translate(-pv.x,-pv.y)},scale:(sx,sy,pv)=>{ctx.translate(pv.x,pv.y);ctx.scale(sx,sy);ctx.translate(-pv.x,-pv.y)}});f();ctx.restore()}
+const PI=Math.PI, abs=Math.abs, s=x=>Math.sin(x), max=Math.max;
+</script>
+<script>document.write('<script src="'+(new URLSearchParams(location.search).get("style")||"cats")+'.js?'+Date.now()+'"><\/script>')</script>
+<script>
+const moods=['CHAT','LISTEN','THINK','SLEEP','CELEBRATE']; const times=[0,1500,3100,4300];
+for(const m of moods){const row=document.createElement('div');row.className='row';const lab=document.createElement('div');lab.style.width='90px';lab.textContent=m;row.appendChild(lab);
+ for(const t of times){const c=document.createElement('canvas');c.width=168*S;c.height=60*S;ctx=c.getContext('2d');ctx.fillStyle='#121212';ctx.fillRect(0,0,c.width,c.height);ctx.save();ctx.scale(S,S);drawDuo(m,t);ctx.restore();row.appendChild(c)}
+ document.getElementById('grid').appendChild(row)}
+</script></body></html>

@@ -1,0 +1,3 @@
+#!/bin/sh
+# getty -n -l: log the phone's user straight into tty1; ~/.profile then starts waker-menu there.
+exec /bin/login -f abhyuday

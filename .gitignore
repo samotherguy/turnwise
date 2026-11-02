@@ -5,3 +5,9 @@ __pycache__/
 .playwright-mcp/
 .*.log
 .claude/settings.local.json
+static/Turnwise.apk
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+cardputer/.pio/

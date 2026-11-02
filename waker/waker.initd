@@ -1,0 +1,9 @@
+#!/sbin/openrc-run
+description="Turnwise waker: Wake-on-LAN over HTTP"
+command="/usr/bin/python3"
+command_args="/usr/local/bin/waker.py"
+command_background="yes"
+pidfile="/run/waker.pid"
+output_log="/var/log/waker.log"
+error_log="/var/log/waker.log"
+depend() { need net; after tailscaled; }

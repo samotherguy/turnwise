@@ -142,7 +142,7 @@ fun NotesTab(snackbar: SnackbarHostState, padding: PaddingValues, uploads: Uploa
                 list == null -> item { Text("Loading…", style = MaterialTheme.typography.bodySmall) }
                 list.isEmpty() -> item {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 24.dp)) {
-                        Duo(if (query.isNotEmpty()) Mood.THINK else Mood.SLEEP, Modifier.width(200.dp))
+                        Duo(if (query.isNotEmpty()) Mood.THINK else Mood.SLEEP, Modifier.width(200.dp), caption = true)
                         Spacer(Modifier.height(16.dp))
                         Text(
                             if (query.isNotEmpty()) "No matches." else "No notes yet. Record a meeting, upload a file, or send a moment from Listen.",
@@ -206,7 +206,7 @@ private fun Brand() {
         Spacer(Modifier.width(12.dp))
         Text("Turnwise", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.weight(1f))
-        Duo(Mood.CHAT, Modifier.width(150.dp), celebrate = Bus.notesVersion)
+        Duo(Mood.CHAT, Modifier.width(150.dp), celebrate = Bus.notesVersion, caption = true)
     }
 }
 
