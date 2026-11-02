@@ -34,7 +34,7 @@ Boot images live on the box in `~/waker-phone/`: `lk2nd.img`, `boot.img`, `boot-
 - **lk2nd.** The stock OnePlus bootloader refuses mainline boot images (it bounces straight back to fastboot).
   lk2nd 23.1 (`lk2nd-msm8996.img` from github.com/msm8916-mainline/lk2nd releases) sits at offset 0 of the
   `boot` partition and boots the real boot image stored at offset 512 KiB in the same partition.
-- **Console UI.** No graphical interface. The screen shows a login prompt and then blanks; that is normal.
+- **Console UI.** No graphical interface: a one-key menu and an on-screen keyboard on the framebuffer console (see below). Press the power button to light the screen.
 - **Direct-first in the app.** The Android app talks to the box itself and only uses the waker when the box does
   not answer. Routing everything through the phone would buffer uploads in its RAM and add a hop to every call.
 
@@ -151,6 +151,26 @@ The install password lived only in a scratch file that a reboot wiped. Recovery 
    (`sde18` is `boot`; check with `blkid`). `umount`, `kpartx -d /dev/sda15`, `pmos_continue_boot`.
    That boot still shows the debug flag in `/proc/cmdline`; the next one is clean.
 
+## The screen: a console UI, not a compositor
+
+The phone has a small UI so it is not a black slab: press the power button and the panel shows a one-key menu
+with com and com-2 (status, wake, shut down), the battery and both addresses, a shell (`t`), and an on-screen
+keyboard across the bottom third. The screen goes dark again after 90 s. Everything is in `console/`:
+
+- `screen.py` (root, OpenRC service `waker-screen`): power key toggles the backlight (never the panel), idle
+  timeout, and the keyboard: drawn straight into `/dev/fb0` with Pillow, touches hit-tested and typed into the
+  console through `/dev/uinput`. It shrinks tty1 to the rows above the keyboard.
+- `waker-menu`: the menu, started by `~/.profile` on tty1; `waker-login` makes getty log the user in there.
+- `install.sh`: packages (`py3-pillow`, `font-terminus`, busybox has `setfont`), the service, the inittab line.
+
+Why not Sxmo or Phosh: they were tried on 2026-11-02 and both attempts hung the SoC within seconds of
+starting sway, with and without software rendering. The Adreno 530 never initialises (`a530_zap.mbn`
+fails with EIO, like every other TrustZone-signed blob: the phone's firmware partitions do not match the blobs
+postmarketOS ships), and the display driver's modeset path hangs the whole SoC once a DRM master takes over.
+The framebuffer console was on screen during boot and has never hung, so the UI stays on it. If a
+compositor is ever started again, have `ssh` ready over USB (`172.16.42.1`) to `rc-update del tinydm default`
+on the way back up, or the phone will hang at every boot.
+
 ## Turnwise Android app
 
 `Waker.kt` in the app repo (`~/personal_projects/repos/turnwise-listener`). Settings → Power panel shows com and
@@ -164,3 +184,4 @@ deliver by copying the APK to `audio-notes/static/Turnwise.apk` (served at the T
 
 - com-2 Off: run `box_poweroff_setup.sh` on the LLM box and set `LLM_SSH=user@100.73.147.59` in `/etc/waker.conf`.
 - The proxy buffers request bodies in RAM and ignores chunked trailers; fine for this use.
+- The Sxmo packages are still installed (inert, `tinydm` is out of the runlevel); `apk del postmarketos-ui-sxmo-de-sway` frees ~400 MB.
