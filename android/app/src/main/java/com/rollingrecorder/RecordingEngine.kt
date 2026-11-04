@@ -122,6 +122,7 @@ class RecordingEngine(
                     if (silencedByAndroid) {
                         closeChunk("silenced by Android")
                         setStatus(Status.PAUSED)
+                        if (settings.callCapture && CallCaptureService.enabled(context)) captureCall(audioManager)
                     } else {
                         setStatus(Status.RECORDING)
                         handleAudio(pcm, n)
@@ -133,6 +134,44 @@ class RecordingEngine(
             try { audioManager.unregisterAudioRecordingCallback(callback) } catch (_: Throwable) {}
             try { rec.stop() } catch (_: Throwable) {}
             rec.release()
+        }
+    }
+
+    /**
+     * While the normal stream is silenced by a call, open a second one with the voice-recognition source:
+     * with an enabled accessibility service Android lets that one through on many phones. Runs until the
+     * call ends (the normal stream is un-silenced) and writes into the same rolling buffer.
+     */
+    private fun captureCall(audioManager: AudioManager) {
+        val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        val rec = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf * 4, CAPTURE_BUFFER_BYTES))
+        val blockedRef = java.util.concurrent.atomic.AtomicBoolean(false)
+        val callback = object : AudioManager.AudioRecordingCallback() {
+            override fun onRecordingConfigChanged(configs: List<AudioRecordingConfiguration>) {
+                blockedRef.set(configs.firstOrNull { it.clientAudioSessionId == rec.audioSessionId }?.isClientSilenced ?: false)
+                RecorderState.callBlocked.value = blockedRef.get()
+            }
+        }
+        try {
+            if (rec.state != AudioRecord.STATE_INITIALIZED) { Log.w(TAG, "call capture: could not open"); return }
+            audioManager.registerAudioRecordingCallback(callback, Handler(Looper.getMainLooper()))
+            rec.startRecording()
+            val pcm = ByteArray(READ_BYTES)
+            while (running && silencedByAndroid) {
+                val n = rec.read(pcm, 0, pcm.size)
+                if (n < 0) { Log.w(TAG, "call capture read $n"); break }
+                val blocked = blockedRef.get()
+                if (n > 0 && !blocked) { setStatus(Status.CALL); handleAudio(pcm, n) }
+                else if (blocked) setStatus(Status.PAUSED)
+                serveFlushRequests()
+            }
+            closeChunk("call ended")
+        } finally {
+            try { audioManager.unregisterAudioRecordingCallback(callback) } catch (_: Throwable) {}
+            try { rec.stop() } catch (_: Throwable) {}
+            rec.release()
+            RecorderState.callBlocked.value = false
         }
     }
 

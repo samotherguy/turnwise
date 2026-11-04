@@ -2,7 +2,7 @@ package com.rollingrecorder
 
 import kotlinx.coroutines.flow.MutableStateFlow
 
-enum class Status { STOPPED, STARTING, RECORDING, PAUSED, RETRYING }
+enum class Status { STOPPED, STARTING, RECORDING, PAUSED, RETRYING, CALL }
 
 /** The chunk being written right now: its start and loudness per second so far. */
 class LiveChunk(val startMs: Long, val levels: ByteArray)
@@ -10,6 +10,9 @@ class LiveChunk(val startMs: Long, val levels: ByteArray)
 /** Process-wide state shared between the service, the engine thread and the UI. */
 object RecorderState {
     val status = MutableStateFlow(Status.STOPPED)
+
+    /** Set when call capture was tried during a call and Android silenced that stream too. */
+    val callBlocked = MutableStateFlow(false)
 
     /** Bumped every time a chunk is finalised or deleted, so the UI can refresh. */
     val chunkTick = MutableStateFlow(0)

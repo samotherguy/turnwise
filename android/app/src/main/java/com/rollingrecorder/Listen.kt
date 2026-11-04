@@ -836,10 +836,12 @@ private fun statusTitle(s: Status): String = when (s) {
     Status.RECORDING -> "Listening"
     Status.PAUSED -> "Paused"
     Status.RETRYING -> "Waiting for mic"
+    Status.CALL -> "Recording the call"
 }
 
 private fun statusDetail(s: Status): String? = when (s) {
-    Status.PAUSED -> "Another app has the microphone. Resumes by itself when it is free."
+    Status.PAUSED -> if (RecorderState.callBlocked.value) "Android blocked call capture on this phone. Resumes when the call ends." else "Another app has the microphone. Resumes by itself when it is free."
+    Status.CALL -> "Experimental: the call goes into the buffer like everything else."
     Status.STOPPED -> "Nothing is recorded while stopped, and it will not restart by itself."
     else -> null
 }

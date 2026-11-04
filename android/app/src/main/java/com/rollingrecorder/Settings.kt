@@ -41,6 +41,11 @@ class Settings(context: Context) {
         }
 
     /** Where Listen records: "phone" (this device's mic) or "cardputer" (the Cardputer on the network). */
+    /** Keep recording through calls via the accessibility route (experimental). */
+    var callCapture: Boolean
+        get() = prefs.getBoolean("call_capture", false)
+        set(value) { prefs.edit().putBoolean("call_capture", value).apply() }
+
     var listenSource: String
         get() = prefs.getString("listen_source", "phone") ?: "phone"
         set(value) { prefs.edit().putString("listen_source", value).apply() }
