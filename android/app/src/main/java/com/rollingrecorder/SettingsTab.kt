@@ -66,6 +66,7 @@ fun SettingsTab(padding: PaddingValues) {
         item { PageTitle("Settings") }
         item { Column { ListenerSettings(onAddressChanged = { reconnect++ }) } }
         item { PowerPanel() }
+        item { CallsPanel() }
         item { CardputerGuide() }
         polled.error?.let { item { Banner(it, error = true) } }
         saveError?.let { item { Banner("Not saved: $it", error = true) } }
@@ -197,6 +198,31 @@ private fun CardputerGuide() {
 }
 
 /** Wake or shut down the Turnwise box (com) and the LLM box (com-2) through the waker phone. */
+/** Experimental call capture: a switch, and the accessibility service it depends on. */
+@Composable
+private fun CallsPanel() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settings = remember { Settings(context) }
+    var on by remember { mutableStateOf(settings.callCapture) }
+    var serviceOn by remember { mutableStateOf(CallCaptureService.enabled(context)) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { while (true) { serviceOn = CallCaptureService.enabled(context); kotlinx.coroutines.delay(2_000) } }   // picks up the toggle when you come back from Settings
+    Panel {
+        SectionTitle("Calls")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Keep recording through calls", style = MaterialTheme.typography.bodyLarge)
+                Text("Experimental. Cellular calls may capture both sides; WhatsApp and Teams only your side unless on speaker.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(on, { on = it; settings.callCapture = it }, colors = SwitchDefaults.colors(checkedTrackColor = Green, checkedThumbColor = Color.Black))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (serviceOn) "Accessibility service: on" else "Accessibility service: off (needed for calls)", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = if (serviceOn) Green else MaterialTheme.colorScheme.error)
+            TextButton(onClick = { CallCaptureService.openSettings(context) }) { Text("Open", color = Green) }
+        }
+        if (!serviceOn) Text("Android 13+: if the toggle is greyed out, go to App info → ⋮ → Allow restricted settings first. Check your local law on recording calls.", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
 @Composable
 private fun PowerPanel() {
     val context = androidx.compose.ui.platform.LocalContext.current

@@ -44,6 +44,7 @@ object Notifications {
         val title = when (status) {
             Status.RECORDING -> "Listening"
             Status.PAUSED -> "Paused · another app has the mic"
+            Status.CALL -> "Recording the call"
             Status.RETRYING -> "Waiting for the microphone"
             Status.STOPPED, Status.STARTING -> "Starting…"
         }
