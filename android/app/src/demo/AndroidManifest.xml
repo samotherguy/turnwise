@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The demo flavour carries no accessibility service: Play Protect (enhanced fraud protection, Singapore) refuses to
+     sideload any app that declares one, and the call-capture experiment has no place in a demo anyway. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <service android:name=".CallCaptureService" tools:node="remove" />
+    </application>
+</manifest>
