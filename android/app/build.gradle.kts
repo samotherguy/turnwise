@@ -22,6 +22,20 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        manifestPlaceholders["appName"] = "Turnwise"
+    }
+
+    // "demo" installs beside the real app (own package name) and talks to the server's demo account, so nothing real is shown.
+    flavorDimensions += "account"
+    productFlavors {
+        create("full") { dimension = "account" }
+        create("demo") {
+            dimension = "account"
+            applicationIdSuffix = ".demo"
+            versionNameSuffix = "-demo"
+            manifestPlaceholders["appName"] = "Turnwise Demo"
+            buildConfigField("String", "TURNWISE_URL", "\"${prop("turnwise.demo.url", prop("turnwise.url", "https://your-box.your-tailnet.ts.net:8446").replace(":8446", ":8448"))}\"")
+        }
     }
 
     buildTypes {
