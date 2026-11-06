@@ -175,9 +175,15 @@ Record on the Notes tab marks a start in the buffer and sends from there when yo
 
 ```bash
 cd android
-./gradlew assembleDebug testDebugUnitTest
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleFullDebug testFullDebugUnitTest
+adb install -r app/build/outputs/apk/full/debug/app-full-debug.apk
 ```
+
+There are two flavours. `full` is the app. `demo` (`assembleDemoDebug`) installs beside it as "Turnwise Demo" with its own
+package name and talks to the server's demo account, so you can show the app to people without a single real meeting
+on screen. The demo account is a small proxy in front of the server that fixes the login to `demo@turnwise`
+(`demo-notes/proxy.py`, see the GIF notes in `docs/`), published on its own Tailscale Serve port; the demo flavour's
+address is `turnwise.demo.url` in `local.properties`, defaulting to the full address with port 8448.
 
 Put your addresses in `android/local.properties` before building (`turnwise.url=https://<box>.<tailnet>.ts.net:8446`, `waker.url=https://waker.<tailnet>.ts.net:8491`); they become the app's defaults and can still be changed in Settings. Then, in the app: Settings → Server → your Tailscale Serve address (the phone must be on the tailnet), Listen → Start, and allow unrestricted battery use when it asks. To have the widget, long-press the home screen and add "Turnwise". The waker address in Settings defaults to the waker phone's tailnet name; the Cardputer address is blank, meaning "find it on the network".
 

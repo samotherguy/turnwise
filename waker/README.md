@@ -177,7 +177,7 @@ on the way back up, or the phone will hang at every boot.
 com-2 with Wake/Off; `wakerUrl` defaults to `https://waker.<tailnet>.ts.net:8491`. Rules: Listen is the home
 tab and works offline; entering Notes or Ask, opening a note, or sending a recording wakes the box if it does
 not answer; nothing else ever wakes it, screens just show an "off" banner with a Wake button. The Turnwise
-address stays the box's own URL. Build: `JAVA_HOME=~/.local/opt/jdk17 ANDROID_HOME=~/Android/Sdk ~/.local/opt/gradle-8.9/bin/gradle assembleDebug`;
+address stays the box's own URL. Build: `JAVA_HOME=~/.local/opt/jdk17 ANDROID_HOME=~/Android/Sdk ~/.local/opt/gradle-8.9/bin/gradle assembleFullDebug` (`assembleDemoDebug` for the demo flavour);
 deliver by copying the APK to `audio-notes/static/Turnwise.apk` (served at the Turnwise URL) or `tailscale file cp`.
 
 ## Still open
