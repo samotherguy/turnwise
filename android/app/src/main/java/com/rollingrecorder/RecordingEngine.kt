@@ -182,6 +182,7 @@ class RecordingEngine(
             ChunkWriter(store.dir, startMs).also { writer = it }
         }
         w.write(pcm, n)
+        RecorderState.liveSink?.invoke(pcm, n)
         RecorderState.live.value = LiveChunk(w.startMs, w.levels())
         if (w.durationMs() >= CHUNK_MS) closeChunk("full")
     }

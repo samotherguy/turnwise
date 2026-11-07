@@ -20,6 +20,10 @@ object RecorderState {
     /** Levels of the in-progress chunk, so the timeline reaches "now". Null between chunks. */
     val live = MutableStateFlow<LiveChunk?>(null)
 
+    /** Live transcription's tap on the audio, set only while it is on. Called on the recorder thread. */
+    @Volatile
+    var liveSink: ((ByteArray, Int) -> Unit)? = null
+
     /** The running engine, or null when recording is stopped. */
     @Volatile
     var engine: RecordingEngine? = null
