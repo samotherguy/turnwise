@@ -624,6 +624,7 @@ private fun LivePanel(status: Status) {
     }
     val listening = status == Status.RECORDING || status == Status.CALL
     val on = st.phase != LiveAsr.Phase.OFF && st.phase != LiveAsr.Phase.ERROR
+    LaunchedEffect(listening) { if (!listening) LiveAsr.stop() }      // no audio, nothing to transcribe: free the GPU
     Panel {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
