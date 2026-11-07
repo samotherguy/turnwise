@@ -151,7 +151,7 @@ object LiveAsr {
     private fun clean(raw: String): String {
         val t = raw.replace(Regex("^\\s*language\\s+\\w+\\s*<asr_text>"), "").trim()
         if (t.equals("Transcribe this audio.", ignoreCase = true) || t.none { it.isLetterOrDigit() }) return ""
-        return t
+        return Hinglish.latin(t)          // one script whichever the recogniser picked for this window
     }
 
     private fun wavHeader(dataLen: Int): ByteArray {
