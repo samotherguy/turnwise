@@ -122,7 +122,8 @@ class RecordingEngine(
                     if (silencedByAndroid) {
                         closeChunk("silenced by Android")
                         setStatus(Status.PAUSED)
-                        if (settings.callCapture && CallCaptureService.enabled(context)) captureCall(audioManager)
+                        // Only a call (the audio mode says so) is worth a second stream; another app holding the mic is not.
+                        if (settings.callCapture && CallCaptureService.enabled(context) && audioManager.mode != AudioManager.MODE_NORMAL) captureCall(audioManager)
                     } else {
                         setStatus(Status.RECORDING)
                         handleAudio(pcm, n)
@@ -140,7 +141,8 @@ class RecordingEngine(
     /**
      * While the normal stream is silenced by a call, open a second one with the voice-recognition source:
      * with an enabled accessibility service Android lets that one through on many phones. Runs until the
-     * call ends (the normal stream is un-silenced) and writes into the same rolling buffer.
+     * call ends and writes into the same rolling buffer. The end of the call is read from the audio mode:
+     * the normal stream never un-silences while this one exists, since Android feeds only an app's newest stream.
      */
     private fun captureCall(audioManager: AudioManager) {
         val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
@@ -158,7 +160,11 @@ class RecordingEngine(
             audioManager.registerAudioRecordingCallback(callback, Handler(Looper.getMainLooper()))
             rec.startRecording()
             val pcm = ByteArray(READ_BYTES)
-            while (running && silencedByAndroid) {
+            var normalSince = 0L
+            while (running) {
+                if (audioManager.mode == AudioManager.MODE_NORMAL) {           // call over; a second of grace for mode flicker
+                    if (normalSince == 0L) normalSince = System.currentTimeMillis() else if (System.currentTimeMillis() - normalSince > 1_000) break
+                } else normalSince = 0L
                 val n = rec.read(pcm, 0, pcm.size)
                 if (n < 0) { Log.w(TAG, "call capture read $n"); break }
                 val blocked = blockedRef.get()
