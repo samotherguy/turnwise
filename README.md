@@ -168,6 +168,7 @@ Deleting a known voice also untags that name in every note, so the labels can be
 8. **The widget** starts and stops listening in one tap; the notification has Stop and "Send last 15 min".
 9. **Frito and Ramona**, the two cats, live on every page and act out what the app is doing: chatting, listening, thinking, asleep, or hunting the feather when something good happens. They are rendered from photos of the real cats with FLUX Kontext on the GPU machine and animated as sprites.
 10. **Power.** Settings shows whether the GPU machine and the LLM box are on, with Wake and Off buttons that go through the waker phone. When the box is off, going to Notes or Ask, opening a note, or sending a recording wakes it and waits; nothing else does, because Listen is used offline. Settings also carries a guide to the Cardputer.
+11. **Live transcript.** A Live button on the Listen tab runs Qwen3-ASR 1.7B on the phone's own GPU (llama.cpp's server, bundled in the app, OpenCL on the Adreno) and shows what is being said as it is said, lyrics-style: the recorder's audio is cut at pauses into short windows and each window becomes a line a few seconds later. It is a draft to read along; the note still comes from the box. It runs only while it is on and the screen is open, and the two model files (2.5 GB) download once from the box (`static/models/`).
 
 Record on the Notes tab marks a start in the buffer and sends from there when you stop, so you can lock the phone or leave the app mid-meeting. Sharing an audio file from any app uploads it.
 

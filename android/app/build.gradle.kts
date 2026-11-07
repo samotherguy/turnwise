@@ -23,7 +23,9 @@ android {
         versionCode = 1
         versionName = "1.0"
         manifestPlaceholders["appName"] = "Turnwise"
+        ndk { abiFilters += listOf("arm64-v8a") }     // the bundled llama.cpp server is arm64 only
     }
+    packaging { jniLibs { useLegacyPackaging = true } }   // extract jniLibs to disk: the server binary is executed, not loaded
 
     // "demo" installs beside the real app (own package name) and talks to the server's demo account, so nothing real is shown.
     flavorDimensions += "account"

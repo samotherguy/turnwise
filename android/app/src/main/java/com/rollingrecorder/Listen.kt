@@ -38,6 +38,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
@@ -274,6 +275,7 @@ fun ListenTab(ui: ListenUi, player: PreviewPlayer, snackbar: SnackbarHostState, 
                 onStop = { RecorderService.stop(context) },
             )
         }
+        if (source == "phone") item { LivePanel(status) }
         if (source == "phone" && !batteryUnrestricted) {
             item {
                 Panel {
@@ -605,6 +607,55 @@ private fun Hero(status: Status, subtitle: String, onStart: () -> Unit, onStop: 
                 label = "title",
             ) { Text(it, style = MaterialTheme.typography.headlineMedium, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             Text(statusDetail(status) ?: subtitle, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+/** Live transcript: a draft that reads along, lyrics-style, only while this is on and the screen is open. */
+@Composable
+private fun LivePanel(status: Status) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val st by LiveAsr.state.collectAsState()
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycle) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP) LiveAsr.stop() }
+        lifecycle.lifecycle.addObserver(obs)
+        onDispose { lifecycle.lifecycle.removeObserver(obs); LiveAsr.stop() }
+    }
+    val listening = status == Status.RECORDING || status == Status.CALL
+    val on = st.phase != LiveAsr.Phase.OFF && st.phase != LiveAsr.Phase.ERROR
+    Panel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Live transcript", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    when (st.phase) {
+                        LiveAsr.Phase.OFF -> if (listening) "Read along as it is said. Runs on the phone's GPU only while this is on." else "Start listening first."
+                        LiveAsr.Phase.ERROR -> st.detail
+                        LiveAsr.Phase.ON -> if (st.pending) "Transcribing…" else "Listening for the next pause…"
+                        else -> st.detail
+                    },
+                    style = MaterialTheme.typography.bodySmall, color = if (st.phase == LiveAsr.Phase.ERROR) MaterialTheme.colorScheme.error else Mist,
+                )
+            }
+            if (on) TextButton(onClick = { LiveAsr.stop() }) { Text("Stop", color = MaterialTheme.colorScheme.error) }
+            else Button(onClick = { LiveAsr.start(context) }, enabled = listening, colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.Black)) { Text("Live") }
+        }
+        if (st.phase == LiveAsr.Phase.DOWNLOADING) LinearProgressIndicator(progress = { st.progress }, Modifier.fillMaxWidth(), color = Green)
+        if (st.lines.isNotEmpty() || st.phase == LiveAsr.Phase.ON) {
+            val list = androidx.compose.foundation.lazy.rememberLazyListState()
+            LaunchedEffect(st.lines.size, st.pending) { if (st.lines.isNotEmpty()) list.animateScrollToItem(st.lines.size) }
+            val pulse by rememberInfiniteTransition(label = "live").animateFloat(0.3f, 1f, infiniteRepeatable(tween(700), RepeatMode.Reverse), label = "pulse")
+            LazyColumn(Modifier.fillMaxWidth().heightIn(min = 120.dp, max = 320.dp), state = list, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                itemsIndexed(st.lines) { i, line ->
+                    val last = i == st.lines.lastIndex && !st.pending
+                    Text(line.text, style = if (last) MaterialTheme.typography.titleLarge else MaterialTheme.typography.titleMedium,
+                        color = if (last) Color.White else Mist.copy(alpha = 0.55f + 0.45f * (i + 1f) / (st.lines.size + 1f)))
+                }
+                if (st.pending || (st.phase == LiveAsr.Phase.ON && st.lines.isEmpty())) item {
+                    Text(if (st.pending) "…" else "Say something", style = MaterialTheme.typography.titleLarge, color = Color.White.copy(alpha = pulse))
+                }
+            }
         }
     }
 }
