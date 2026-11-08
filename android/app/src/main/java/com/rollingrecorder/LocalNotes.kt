@@ -29,9 +29,11 @@ object LocalNotes {
         val created = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(createdMs), ZoneId.systemDefault())
         var id = PREFIX + ID_FMT.format(created); var k = 1
         while (dir(context, id).exists()) id = PREFIX + ID_FMT.format(created) + "-" + (++k)
-        val d = dir(context, id).apply { mkdirs() }
         val ext = name.substringAfterLast('.', "m4a").lowercase().take(5)
-        context.contentResolver.openInputStream(uri)!!.use { input -> File(d, "audio.$ext").outputStream().use { input.copyTo(it) } }
+        val tmp = File(root(context), "$id.audio.$ext.part")          // copy first: a folder only exists for a note that has its audio
+        context.contentResolver.openInputStream(uri)!!.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+        val d = dir(context, id).apply { mkdirs() }
+        if (!tmp.renameTo(File(d, "audio.$ext"))) { tmp.delete(); d.deleteRecursively(); error("could not store the recording") }
         write(d, "meta.json", JSONObject()
             .put("title", title.ifBlank { "Recording ${created.format(DateTimeFormatter.ofPattern("d MMM HH:mm"))}" }).put("title_auto", title.isBlank())
             .put("folder", folder).put("created", created.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)).put("origin", "phone")

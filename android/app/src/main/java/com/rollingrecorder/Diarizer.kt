@@ -67,7 +67,7 @@ class Diarizer(context: Context, threshold: Float = THRESHOLD) {
     fun release() { sd.release() }
 
     companion object {
-        const val THRESHOLD = 0.5f          // calibrated on the phone against the server's speakers for the same meeting
+        const val THRESHOLD = 0.6f          // 10 min of a real meeting: 0.5 splits into 10 voices, 0.7 merges to 2, 0.6 gives the server's three main speakers
 
         fun merge(raw: List<Turn>, gap: Double = 1.0, maxLen: Double = 30.0, minLen: Double = 0.4): List<Turn> {
             val out = ArrayList<Turn>()
