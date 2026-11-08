@@ -19,6 +19,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         Api.settings = Settings(this)
+        Api.context = applicationContext
         Waker.init(this)
         if (savedInstanceState == null) incoming.value = intent
         setContent {

@@ -72,6 +72,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.compose.material:material-icons-extended")
+    implementation(files("libs/sherpa-onnx-2.0.1.aar"))   // speakers on the phone (pyannote segmentation + speaker embeddings, CPU)
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")   // android.jar stubs org.json in local tests
 }

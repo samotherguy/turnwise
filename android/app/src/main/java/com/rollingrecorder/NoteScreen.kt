@@ -84,8 +84,10 @@ suspend fun playNote(player: PreviewPlayer, n: Note, sec: Double) {
 @Composable
 fun NoteScreen(
     id: String, atSec: Double?, player: PreviewPlayer, snackbar: SnackbarHostState, padding: PaddingValues,
-    back: () -> Unit, openChats: (String) -> Unit,
+    back: () -> Unit, openChats: (String) -> Unit, openNote: (String) -> Unit = {},
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val isPhone = LocalNotes.isLocal(id)
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
     val polled = rememberPolled("note:$id", every = { n -> if (n.status.state !in setOf("done", "error")) 3_000L else null }) {
@@ -145,8 +147,8 @@ fun NoteScreen(
                         DropdownMenu(menu, { menu = false }, containerColor = Raised) {
                             listOf(
                                 "ask" to "Ask about this recording", "rename" to "Rename", "folder" to "Move to folder…",
-                                "copy" to "Copy markdown", "retry" to "Re-transcribe", "delete" to "Delete",
-                            ).forEach { (k, l) ->
+                                "copy" to "Copy markdown", "retry" to (if (isPhone) "Re-transcribe on this phone" else "Re-transcribe"),
+                            ).plus(if (isPhone) listOf("box" to "Redo on the box (full quality)") else emptyList()).plus("delete" to "Delete").forEach { (k, l) ->
                                 DropdownMenuItem(
                                     text = { Text(l, color = if (k == "delete") MaterialTheme.colorScheme.error else Color.White) },
                                     onClick = {
@@ -221,6 +223,16 @@ fun NoteScreen(
         "folder" -> FolderDialog(note.folder, { dialog = null }) { f ->
             dialog = null
             patch(JSONObject().put("folder", f), if (f.isEmpty()) "Removed from folder" else "Moved to $f")
+        }
+        "box" -> ConfirmDialog("Redo on the box?", "The recording is sent to the Turnwise box (waking it if needed) for the full transcript with English and better speakers. The phone copy is replaced by the box's note.", "Send", false, { dialog = null }) {
+            dialog = null
+            scope.launch {
+                try {
+                    if (player.noteId == id) player.unload()
+                    val newId = withContext(Dispatchers.IO) { Ingest.redoOnBox(context, id) }
+                    Bus.notesVersion++; back(); openNote(newId)
+                } catch (t: Throwable) { snackbar.showSnackbar(errorText(t)) }
+            }
         }
         "retry" -> ConfirmDialog("Re-transcribe?", "The transcript, summary and speaker labels will be regenerated.", "Re-transcribe", false, { dialog = null }) {
             dialog = null

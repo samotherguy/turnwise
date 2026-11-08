@@ -41,6 +41,16 @@ class Settings(context: Context) {
         }
 
     /** Where Listen records: "phone" (this device's mic) or "cardputer" (the Cardputer on the network). */
+    /** "box" (today's path) or "phone" (everything on the device, nothing leaves it). */
+    var transcribeOn: String
+        get() = prefs.getString("transcribe_on", "box") ?: "box"
+        set(value) { prefs.edit().putString("transcribe_on", value).apply() }
+
+    /** Where model files come from; blank means the box's /models/. */
+    var modelsUrl: String
+        get() = prefs.getString("models_url", "") ?: ""
+        set(value) { prefs.edit().putString("models_url", value.trim().trimEnd('/')).apply() }
+
     /** Keep recording through calls via the accessibility route (experimental). */
     var callCapture: Boolean
         get() = prefs.getBoolean("call_capture", false)

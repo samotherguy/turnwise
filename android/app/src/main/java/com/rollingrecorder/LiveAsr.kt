@@ -1,7 +1,6 @@
 package com.rollingrecorder
 
 import android.content.Context
-import android.util.Base64
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -9,28 +8,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.ByteArrayOutputStream
-import java.io.File
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlin.math.sqrt
 
 /**
- * Live transcription on the phone. While on, llama.cpp's server runs as a child process with Qwen3-ASR
- * on the GPU; the recorder's audio is cut at pauses into short windows, each window is sent to that
- * server and the text comes back as a line. Off by default, stops with the screen: nothing runs in the
- * background. The final transcript still comes from the box; this is a draft to read along.
+ * Live transcription on the phone. While on, the bundled llama.cpp server holds Qwen3-ASR on the GPU;
+ * the recorder's audio is cut at pauses into short windows, each window is sent to that server and the
+ * text comes back as a line. Off by default, stops with the screen: nothing runs in the background. The
+ * final transcript still comes from the box or the phone pipeline; this is a draft to read along.
  */
 object LiveAsr {
     private const val TAG = "LiveAsr"
-    private const val PORT = 8089
-    private val FILES = listOf("Qwen3-ASR-1.7B-Q8_0.gguf" to 2_165_034_944L, "mmproj-Qwen3-ASR-1.7B-Q8_0.gguf" to 355_709_344L)
 
     enum class Phase { OFF, DOWNLOADING, LOADING, ON, ERROR }
     data class Line(val atMs: Long, val text: String)
@@ -40,7 +31,6 @@ object LiveAsr {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var job: Job? = null
-    private var process: Process? = null
     private var windows = Channel<Pair<Long, ByteArray>>(capacity = 6)
 
     fun start(context: Context) {
@@ -63,125 +53,38 @@ object LiveAsr {
 
     private fun teardown() {
         RecorderState.liveSink = null
-        process?.destroy(); process = null
+        if (TranscribeService.current == null) LlamaServer.release()   // a running note job keeps its own model
         windows.close()
     }
 
     private suspend fun run(context: Context) {
-        val dir = File(context.filesDir, "models").apply { mkdirs() }
-        for ((name, size) in FILES) download(context, dir, name, size)
+        for (spec in Models.LIVE) {
+            state.value = state.value.copy(phase = Phase.DOWNLOADING, detail = "Downloading ${spec.label} (once)", progress = 0f)
+            val watch = scope.launch { Models.progress.collect { p -> if (p != null) state.value = state.value.copy(progress = p.done.toFloat() / p.size, detail = "Downloading ${spec.label} (once) · ${p.done shr 20} of ${p.size shr 20} MB") } }
+            try { Models.download(context, spec) { job?.isActive == true } } finally { watch.cancel() }
+        }
 
         state.value = state.value.copy(phase = Phase.LOADING, detail = "Loading the model on the GPU…", progress = 0f)
-        val lib = context.applicationInfo.nativeLibraryDir
-        val log = File(context.cacheDir, "llama-server.log")
-        val pb = ProcessBuilder(
-            "$lib/libllamaserver.so", "-m", File(dir, FILES[0].first).path, "--mmproj", File(dir, FILES[1].first).path,
-            "-ngl", "99", "--host", "127.0.0.1", "--port", "$PORT", "-t", "4", "-c", "1024", "-np", "1", "--no-warmup",
-        ).redirectErrorStream(true).redirectOutput(log)
-        pb.environment()["LD_LIBRARY_PATH"] = "$lib:/vendor/lib64:/system/lib64"
-        process = pb.start()
-        val deadline = System.currentTimeMillis() + 90_000
-        while (!healthy()) {
-            if (process?.isAlive != true) throw IOException("model server exited: " + log.readText().lines().lastOrNull { it.isNotBlank() }?.take(160))
-            if (System.currentTimeMillis() > deadline) throw IOException("model server did not start in time")
-            delay(1_000)
-        }
+        if (TranscribeService.current != null) throw IOException("A note is being transcribed on this phone. Live can start when it is done.")
+        val server = LlamaServer.acquire(context, Models.ASR, Models.ASR_PROJECTOR, ctx = 1024)
 
         state.value = state.value.copy(phase = Phase.ON, detail = "", pending = false)
         val cutter = Cutter { at, pcm -> windows.trySend(at to pcm) }   // a full queue drops the window rather than stalling the recorder
         RecorderState.liveSink = cutter::feed
         for ((at, pcm) in windows) {
             state.value = state.value.copy(pending = true)
-            val text = runCatching { transcribe(pcm) }.getOrElse { Log.w(TAG, "window failed", it); "" }
+            // Speech is ~3 words a second; a cap tied to the window length stops a decoding loop early.
+            val cap = (pcm.size / 2 / SAMPLE_RATE * 8 + 16).coerceIn(24, 160)
+            val text = runCatching { clean(server.transcribe(pcm, cap)) }.getOrElse { Log.w(TAG, "window failed", it); "" }
             if (text.isNotBlank()) state.value = state.value.let { it.copy(lines = (it.lines + Line(at, text)).takeLast(80), pending = false) }
             else state.value = state.value.copy(pending = false)
         }
     }
 
-    private fun healthy(): Boolean = runCatching {
-        val c = URL("http://127.0.0.1:$PORT/health").openConnection() as HttpURLConnection
-        try { c.connectTimeout = 800; c.readTimeout = 800; c.responseCode == 200 } finally { c.disconnect() }
-    }.getOrDefault(false)
-
-    /** Fetches a model file from the box (resumable), waking the box if it is off. */
-    private suspend fun download(context: Context, dir: File, name: String, size: Long) {
-        val out = File(dir, name)
-        if (out.length() == size) return
-        state.value = state.value.copy(phase = Phase.DOWNLOADING, detail = "Downloading $name (once)", progress = 0f)
-        Waker.wakeIfOff()
-        val part = File(dir, "$name.part"); val have = part.length()
-        val c = URL("${Settings(context).turnwiseUrl}/models/$name").openConnection() as HttpURLConnection
-        try {
-            c.connectTimeout = 10_000; c.readTimeout = 60_000
-            if (have > 0) c.setRequestProperty("Range", "bytes=$have-")
-            if (c.responseCode !in 200..299) throw IOException("box answered ${c.responseCode} for $name")
-            val append = c.responseCode == 206
-            c.inputStream.use { input -> java.io.FileOutputStream(part, append).use { os ->
-                val buf = ByteArray(256 * 1024); var done = if (append) have else 0L; var last = 0L
-                while (true) {
-                    val n = input.read(buf); if (n < 0) break
-                    os.write(buf, 0, n); done += n
-                    if (done - last > 4 shl 20) { last = done; state.value = state.value.copy(progress = done.toFloat() / size, detail = "Downloading $name (once) · ${done shr 20} of ${size shr 20} MB") }
-                    if (job?.isActive != true) throw CancellationException()
-                }
-            } }
-        } finally { c.disconnect() }
-        if (part.length() != size) throw IOException("$name is ${part.length()} bytes, expected $size")
-        if (!part.renameTo(out)) throw IOException("could not finish $name")
-    }
-
-    private fun transcribe(pcm: ByteArray): String {
-        val wav = ByteArrayOutputStream(pcm.size + 44).apply { write(wavHeader(pcm.size)); write(pcm) }.toByteArray()
-        // Speech is ~3 words a second; a cap tied to the window length stops a decoding loop early, and a mild
-        // repetition penalty makes the loop less likely in the first place without flattening real repeats.
-        val seconds = pcm.size / 2 / SAMPLE_RATE
-        val body = JSONObject().put("temperature", 0).put("max_tokens", (seconds * 8 + 16).coerceIn(24, 160))
-            .put("repeat_penalty", 1.1).put("repeat_last_n", 48).put("messages", JSONArray().put(
-            JSONObject().put("role", "user").put("content", JSONArray()
-                .put(JSONObject().put("type", "input_audio").put("input_audio", JSONObject().put("data", Base64.encodeToString(wav, Base64.NO_WRAP)).put("format", "wav")))
-                .put(JSONObject().put("type", "text").put("text", "Transcribe this audio.")))))
-        val c = URL("http://127.0.0.1:$PORT/v1/chat/completions").openConnection() as HttpURLConnection
-        try {
-            c.requestMethod = "POST"; c.doOutput = true; c.connectTimeout = 5_000; c.readTimeout = 60_000
-            c.setRequestProperty("Content-Type", "application/json")
-            c.outputStream.use { it.write(body.toString().toByteArray()) }
-            if (c.responseCode != 200) throw IOException("model server answered ${c.responseCode}")
-            val text = JSONObject(c.inputStream.bufferedReader().readText()).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
-            return clean(text)
-        } finally { c.disconnect() }
-    }
-
-    /** The model prefixes its language guess; a silent window gives only that, or echoes the prompt. */
-    private fun clean(raw: String): String {
-        val t = raw.replace(Regex("^\\s*language\\s+\\w+\\s*<asr_text>"), "").trim()
+    /** A silent window gives nothing or echoes the prompt; a loop is collapsed; the script is normalised. */
+    private fun clean(t: String): String {
         if (t.equals("Transcribe this audio.", ignoreCase = true) || t.none { it.isLetterOrDigit() }) return ""
-        return Hinglish.latin(collapseRepeats(t))   // one script whichever the recogniser picked for this window
-    }
-
-    /** A phrase of 1 to 4 words repeated three or more times in a row is a decoder loop: keep two. */
-    private fun collapseRepeats(text: String): String {
-        val w = text.split(Regex("\\s+")).filter { it.isNotEmpty() }.toMutableList()
-        var i = 0
-        while (i < w.size) {
-            var cut = false
-            for (n in 1..4) {
-                if (i + 3 * n > w.size) break
-                val a = w.subList(i, i + n).map { it.lowercase().trim(',', '.', '!', '?') }
-                var reps = 1
-                while (i + (reps + 1) * n <= w.size && w.subList(i + reps * n, i + (reps + 1) * n).map { it.lowercase().trim(',', '.', '!', '?') } == a) reps++
-                if (reps >= 3) { repeat((reps - 2) * n) { w.removeAt(i + 2 * n) }; cut = true; break }
-            }
-            if (!cut) i++
-        }
-        return w.joinToString(" ")
-    }
-
-    private fun wavHeader(dataLen: Int): ByteArray {
-        val b = java.nio.ByteBuffer.allocate(44).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-        b.put("RIFF".toByteArray()).putInt(36 + dataLen).put("WAVE".toByteArray()).put("fmt ".toByteArray())
-        b.putInt(16).putShort(1).putShort(1).putInt(SAMPLE_RATE).putInt(SAMPLE_RATE * 2).putShort(2).putShort(16)
-        b.put("data".toByteArray()).putInt(dataLen)
-        return b.array()
+        return Hinglish.latin(PhonePipeline.collapseRepeats(t))
     }
 
     /**

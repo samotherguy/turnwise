@@ -219,6 +219,7 @@ fun TurnwiseApp(incoming: MutableState<Intent?>) {
                     is Screen.NoteS -> NoteScreen(
                         t.id, t.atSec, player, snackbar, pad, back = nav::pop,
                         openChats = { nav.push(Screen.ChatsS(it)) },
+                        openNote = { nid -> nav.push(Screen.NoteS(nid)) }
                     )
                     is Screen.ChatsS -> ChatsScreen(t.note, snackbar, pad, back = nav::pop, openChat = { nav.push(Screen.ChatS(it)) })
                     is Screen.ChatS -> ChatScreen(
@@ -335,7 +336,7 @@ suspend fun runUploads(
         up.progress = 0f
         try {
             done += withContext(Dispatchers.IO) {
-                Turnwise.upload(context, base, uri, name, modifiedMs(context, uri) ?: System.currentTimeMillis(), folder = folder) { up.progress = it }
+                Ingest.submit(context, uri, name, modifiedMs(context, uri) ?: System.currentTimeMillis(), folder = folder) { up.progress = it }
             }
         } catch (t: Throwable) {
             failed = t.message ?: "failed"
