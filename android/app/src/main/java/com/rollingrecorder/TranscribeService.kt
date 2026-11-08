@@ -32,12 +32,17 @@ class TranscribeService : Service() {
         intent?.getStringExtra(EXTRA_ID)?.let { if (it !in queue) queue.add(it) }
         if (intent?.action == ACTION_CANCEL) { job?.cancel(); queue.clear() }
         // After a kill (Samsung drops apps under memory pressure, calls included) notes left mid-way are picked up again.
-        for (id in unfinished(this)) if (id !in queue && id != current) queue.add(id)
+        for (id in unfinished(this)) if (id !in queue && id != current) {
+            // A note that keeps getting killed mid-way stops after a few tries, with a reason, instead of looping forever.
+            val m = LocalNotes.meta(this, id); val tries = m.optInt("attempts", 0) + 1
+            if (tries > 4) { LocalNotes.setStatus(this, id, "error", "Stopped: the phone kept running out of memory. Retry from the note's menu when no call is active."); continue }
+            LocalNotes.saveMeta(this, id, m.put("attempts", tries)); queue.add(id)
+        }
         if (queue.isEmpty() && job?.isActive != true) { stopSelf(); return START_NOT_STICKY }
         Notifications.ensureChannels(this)
         if (!Api.ready) { Api.settings = Settings(this); Api.context = applicationContext }
         try {
-            ServiceCompat.startForeground(this, Notifications.ID_TRANSCRIBE, notification("Transcribing on this phone", "Starting…", 0), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            ServiceCompat.startForeground(this, Notifications.ID_TRANSCRIBE, notification("Transcribing on this phone", "Starting…", 0), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
         } catch (t: Throwable) { stopSelf(); return START_NOT_STICKY }
         if (job?.isActive != true) job = scope.launch {
             LiveAsr.stop()
@@ -68,6 +73,9 @@ class TranscribeService : Service() {
             .setContentText(text + if (queued > 0) " · $queued more queued" else "").setOngoing(true).setOnlyAlertOnce(true)
             .setContentIntent(open).addAction(0, "Cancel", cancel).build()
     }
+
+    /** Android's time limit for timed service types; with specialUse it should not fire, but if it does, stop cleanly and resume later. */
+    override fun onTimeout(startId: Int, fgsType: Int) { job?.cancel(); LlamaServer.release(); stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
 
     override fun onDestroy() { job?.cancel(); LlamaServer.release(); super.onDestroy() }
 

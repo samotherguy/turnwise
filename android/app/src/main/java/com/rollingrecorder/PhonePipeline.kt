@@ -84,6 +84,7 @@ object PhonePipeline {
             if (meta.optBoolean("title_auto", true) && title.isNotBlank()) meta.put("title", title)
             LocalNotes.saveMeta(context, id, meta)
             LocalNotes.saveTranscript(context, id, transcriptJson(segments, turns, names, embeddings, summary, items, WARNING))
+            LocalNotes.saveMeta(context, id, LocalNotes.meta(context, id).put("attempts", 0))
             stage("done", "")
         } catch (t: Throwable) {
             LlamaServer.release()
@@ -96,8 +97,16 @@ object PhonePipeline {
     /** A call plus a 2.5 GB model is what gets the app killed for memory: heavy stages wait for the call to end. */
     private suspend fun waitForNoCall(context: Context, stage: (String, String) -> Unit) {
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val act = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
         var said = false
-        while (am.mode != AudioManager.MODE_NORMAL) { if (!said) { stage("queued", "Waiting for the call to end"); said = true }; delay(10_000) }
+        while (true) {
+            val mi = android.app.ActivityManager.MemoryInfo().also { act.getMemoryInfo(it) }
+            val inCall = am.mode != AudioManager.MODE_NORMAL
+            val low = mi.lowMemory || mi.availMem < 1_200L shl 20          // the ASR model needs ~1 GB headroom or Samsung kills the app
+            if (!inCall && !low) return
+            if (!said) { stage("queued", if (inCall) "Waiting for the call to end" else "Waiting for free memory (close some apps)"); said = true }
+            delay(10_000)
+        }
     }
 
     private fun transcriptJson(segments: JSONArray, turns: List<Diarizer.Turn>, names: Map<Int, String>, embeddings: Map<Int, FloatArray>, summary: String, items: JSONArray, warning: String?): JSONObject {

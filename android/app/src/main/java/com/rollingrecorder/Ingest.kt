@@ -24,6 +24,7 @@ object Ingest {
 
     /** Re-runs the phone pipeline on an existing phone note. */
     fun redoOnPhone(context: Context, id: String) {
+        LocalNotes.saveMeta(context, id, LocalNotes.meta(context, id).put("attempts", 0))
         LocalNotes.setStatus(context, id, "queued")
         TranscribeService.enqueue(context, id)
     }
