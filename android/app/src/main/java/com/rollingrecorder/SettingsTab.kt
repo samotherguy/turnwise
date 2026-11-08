@@ -211,7 +211,7 @@ private fun CallsPanel() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Keep recording through calls", style = MaterialTheme.typography.bodyLarge)
-                Text("Experimental. Cellular calls may capture both sides; WhatsApp and Teams only your side unless on speaker.", style = MaterialTheme.typography.bodySmall)
+                Text("Experimental. On Samsung phones both sides come through, at the ear too (WhatsApp confirmed); on other phones VoIP calls may give only your side.", style = MaterialTheme.typography.bodySmall)
             }
             Switch(on, { on = it; settings.callCapture = it }, colors = SwitchDefaults.colors(checkedTrackColor = Green, checkedThumbColor = Color.Black))
         }
