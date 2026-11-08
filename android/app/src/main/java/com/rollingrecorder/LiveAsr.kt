@@ -66,7 +66,8 @@ object LiveAsr {
 
         state.value = state.value.copy(phase = Phase.LOADING, detail = "Loading the model on the GPU…", progress = 0f)
         if (TranscribeService.current != null) throw IOException("A note is being transcribed on this phone. Live can start when it is done.")
-        val server = LlamaServer.acquire(context, Models.ASR, Models.ASR_PROJECTOR, ctx = 1024)
+        val (asrSpec, asrProj) = Models.asrFor(context)
+        val server = LlamaServer.acquire(context, asrSpec, asrProj, ctx = 1024)
 
         state.value = state.value.copy(phase = Phase.ON, detail = "", pending = false)
         val cutter = Cutter { at, pcm -> windows.trySend(at to pcm) }   // a full queue drops the window rather than stalling the recorder

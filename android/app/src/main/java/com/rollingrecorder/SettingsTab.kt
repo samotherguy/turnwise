@@ -222,6 +222,12 @@ private fun OnDevicePanel() {
             else "Recordings go to the Turnwise box for the full pipeline (waking it if needed).",
             style = MaterialTheme.typography.bodySmall, color = Mist,
         )
+        var quality by remember { mutableStateOf(settings.asrQuality) }
+        Text("Speech model on the phone", style = MaterialTheme.typography.bodyMedium)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("auto" to "Auto", "light" to "Light (0.6B)", "better" to "Better (1.7B)").forEach { (k, l) -> Pill(l, quality == k) { quality = k; settings.asrQuality = k } }
+        }
+        Text("The 1.7B takes about 5 GB of memory while it runs; Auto uses it only when the phone has that free, otherwise the 0.6B.", style = MaterialTheme.typography.bodySmall, color = Mist)
         SectionTitle("On-device models")
         val have = remember(tick, progress) { Models.ALL.associateWith { Models.has(context, it) } }
         Models.ALL.forEach { m ->

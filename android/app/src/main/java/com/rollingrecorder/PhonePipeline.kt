@@ -21,7 +21,7 @@ object PhonePipeline {
     suspend fun run(context: Context, id: String, isActive: () -> Boolean, progress: (String) -> Unit) {
         val stage: (String, String) -> Unit = { state, detail -> LocalNotes.setStatus(context, id, state, detail); progress(detail.ifBlank { state }) }
         try {
-            for (spec in Models.ALL) if (!Models.has(context, spec)) { stage("downloading", spec.label); Models.download(context, spec, isActive) }
+            for (spec in Models.NOTE) if (!Models.has(context, spec)) { stage("downloading", spec.label); Models.download(context, spec, isActive) }
 
             stage("decoding", "Reading the audio")
             val audio = LocalNotes.audio(context, id) ?: error("no audio")
@@ -50,8 +50,9 @@ object PhonePipeline {
             val doneTurns = saved?.optInt("turns_done", 0) ?: 0
 
             waitForNoCall(context, stage)
+            val (asrSpec, asrProj) = Models.asrFor(context)
             stage("transcribing", "$doneTurns/${turns.size} turns")
-            val asr = LlamaServer.acquire(context, Models.ASR, Models.ASR_PROJECTOR, ctx = 1024)
+            val asr = LlamaServer.acquire(context, asrSpec, asrProj, ctx = 1024)
             turns.forEachIndexed { i, t ->
                 if (i < doneTurns) return@forEachIndexed
                 if (!isActive()) throw kotlinx.coroutines.CancellationException()
@@ -83,7 +84,7 @@ object PhonePipeline {
             val meta = LocalNotes.meta(context, id)
             if (meta.optBoolean("title_auto", true) && title.isNotBlank()) meta.put("title", title)
             LocalNotes.saveMeta(context, id, meta)
-            LocalNotes.saveTranscript(context, id, transcriptJson(segments, turns, names, embeddings, summary, items, WARNING))
+            LocalNotes.saveTranscript(context, id, transcriptJson(segments, turns, names, embeddings, summary, items, WARNING + (if (asrSpec == Models.ASR_SMALL) " Light speech model." else "")))
             LocalNotes.saveMeta(context, id, LocalNotes.meta(context, id).put("attempts", 0))
             stage("done", "")
         } catch (t: Throwable) {
@@ -102,7 +103,7 @@ object PhonePipeline {
         while (true) {
             val mi = android.app.ActivityManager.MemoryInfo().also { act.getMemoryInfo(it) }
             val inCall = am.mode != AudioManager.MODE_NORMAL
-            val low = mi.lowMemory || mi.availMem < 1_200L shl 20          // the ASR model needs ~1 GB headroom or Samsung kills the app
+            val low = mi.lowMemory || mi.availMem < (1_500L shl 20)        // the light ASR needs ~2 GB in all, or Samsung kills the app
             if (!inCall && !low) return
             if (!said) { stage("queued", if (inCall) "Waiting for the call to end" else "Waiting for free memory (close some apps)"); said = true }
             delay(10_000)

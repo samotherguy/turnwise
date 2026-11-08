@@ -16,13 +16,26 @@ import java.net.URL
 object Models {
     data class Spec(val name: String, val size: Long, val label: String)
 
-    val ASR = Spec("Qwen3-ASR-1.7B-Q8_0.gguf", 2_165_034_944L, "Speech to text (Qwen3-ASR 1.7B)")
-    val ASR_PROJECTOR = Spec("mmproj-Qwen3-ASR-1.7B-Q8_0.gguf", 355_709_344L, "Speech to text, audio projector")
+    val ASR = Spec("Qwen3-ASR-1.7B-Q8_0.gguf", 2_165_034_944L, "Speech to text, better (Qwen3-ASR 1.7B, needs ~5 GB free)")
+    val ASR_PROJECTOR = Spec("mmproj-Qwen3-ASR-1.7B-Q8_0.gguf", 355_709_344L, "Speech to text 1.7B, audio projector")
+    val ASR_SMALL = Spec("Qwen3-ASR-0.6B-Q8_0.gguf", 804_749_248L, "Speech to text, light (Qwen3-ASR 0.6B, ~2 GB)")
+    val ASR_SMALL_PROJECTOR = Spec("mmproj-Qwen3-ASR-0.6B-Q8_0.gguf", 214_392_480L, "Speech to text 0.6B, audio projector")
     val LLM = Spec("Qwen3.5-2B-Q8_0.gguf", 2_012_012_800L, "Summaries and Ask (Qwen3.5 2B)")
     val SEGMENTATION = Spec("pyannote-segmentation-3.0.onnx", 5_992_913L, "Speakers, segmentation")
     val EMBEDDING = Spec("wespeaker-resnet34-lm.onnx", 26_530_550L, "Speakers, voices")
-    val ALL = listOf(ASR, ASR_PROJECTOR, LLM, SEGMENTATION, EMBEDDING)
-    val LIVE = listOf(ASR, ASR_PROJECTOR)
+    val ALL = listOf(ASR_SMALL, ASR_SMALL_PROJECTOR, LLM, SEGMENTATION, EMBEDDING, ASR, ASR_PROJECTOR)
+    /** What a phone note needs: the light ASR is the default, the 1.7B only when it is downloaded and memory allows. */
+    val NOTE = listOf(ASR_SMALL, ASR_SMALL_PROJECTOR, LLM, SEGMENTATION, EMBEDDING)
+    val LIVE = listOf(ASR_SMALL, ASR_SMALL_PROJECTOR)
+
+    /** The ASR pair to use now: the 1.7B when present and the phone has room for its ~5 GB, else the 0.6B. */
+    fun asrFor(context: Context): Pair<Spec, Spec> {
+        val big = has(context, ASR) && has(context, ASR_PROJECTOR)
+        val am = context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+        val mi = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+        val wantBig = Settings(context).asrQuality.let { it == "better" || (it == "auto" && mi.availMem > (5_500L shl 20)) }
+        return if (big && wantBig) ASR to ASR_PROJECTOR else ASR_SMALL to ASR_SMALL_PROJECTOR
+    }
 
     /** Download progress for the models screen and the job notifications. */
     data class Progress(val name: String, val done: Long, val size: Long)
