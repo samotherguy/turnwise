@@ -24,6 +24,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -65,6 +66,7 @@ fun SettingsTab(padding: PaddingValues) {
     LazyColumn(Modifier.fillMaxSize(), contentPadding = padding, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item { PageTitle("Settings") }
         item { Column { ListenerSettings(onAddressChanged = { reconnect++ }) } }
+        item { OnDevicePanel() }
         item { PowerPanel() }
         if (BuildConfig.CALL_CAPTURE) item { CallsPanel() }
         item { CardputerGuide() }
@@ -198,6 +200,65 @@ private fun CardputerGuide() {
 }
 
 /** Wake or shut down the Turnwise box (com) and the LLM box (com-2) through the waker phone. */
+/** Where recordings are transcribed, and the models the phone needs for its own pipeline. */
+@Composable
+private fun OnDevicePanel() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settings = remember { Settings(context) }
+    val scope = rememberCoroutineScope()
+    var on by remember { mutableStateOf(settings.transcribeOn) }
+    var tick by remember { mutableStateOf(0) }
+    var busy by remember { mutableStateOf<String?>(null) }
+    val progress by Models.progress.collectAsState()
+    var modelsUrl by remember { mutableStateOf(settings.modelsUrl) }
+    Panel {
+        SectionTitle("Transcribe")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Pill("On the box", on == "box") { on = "box"; settings.transcribeOn = "box" }
+            Pill("On this phone", on == "phone") { on = "phone"; settings.transcribeOn = "phone" }
+        }
+        Text(
+            if (on == "phone") "Nothing leaves the phone: speakers, transcript (Hinglish, no English column) and summary are made here on the GPU, about half an hour per hour of audio. A note can be redone on the box later from its menu."
+            else "Recordings go to the Turnwise box for the full pipeline (waking it if needed).",
+            style = MaterialTheme.typography.bodySmall, color = Mist,
+        )
+        SectionTitle("On-device models")
+        val have = remember(tick, progress) { Models.ALL.associateWith { Models.has(context, it) } }
+        Models.ALL.forEach { m ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(m.label, style = MaterialTheme.typography.bodyMedium)
+                    val p = progress
+                    Text(
+                        when {
+                            p != null && p.name == m.name -> "Downloading · ${p.done shr 20} of ${p.size shr 20} MB"
+                            have[m] == true -> "${m.size shr 20} MB · ready"
+                            else -> "${m.size shr 20} MB · not downloaded"
+                        },
+                        style = MaterialTheme.typography.bodySmall, color = if (have[m] == true) Green else Mist,
+                    )
+                }
+                if (have[m] == true) TextButton(onClick = { Models.delete(context, m); tick++ }) { Text("Delete", color = Mist) }
+            }
+        }
+        val missing = Models.ALL.filter { have[it] != true }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(busy ?: "${Models.bytesOnDisk(context) shr 20} MB on the phone", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Mist)
+            if (missing.isNotEmpty()) TextButton(enabled = busy == null, onClick = {
+                busy = "Downloading…"
+                scope.launch(Dispatchers.IO) {
+                    try { for (m in Models.ALL) if (!Models.has(context, m)) Models.download(context, m); busy = null } catch (t: Throwable) { busy = errorText(t) }
+                    tick++
+                }
+            }) { Text("Download all (${missing.sumOf { it.size } shr 20} MB)", color = Green) }
+        }
+        OutlinedTextField(
+            value = modelsUrl, onValueChange = { modelsUrl = it; settings.modelsUrl = it },
+            label = { Text("Models from (blank = the box)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+        )
+    }
+}
+
 /** Experimental call capture: a switch, and the accessibility service it depends on. */
 @Composable
 private fun CallsPanel() {

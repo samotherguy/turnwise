@@ -176,7 +176,7 @@ suspend fun sendToTurnwise(
 ) {
     val settings = Settings(context)
     try {
-        val r = withContext(Dispatchers.IO) { Turnwise.upload(context, settings.turnwiseUrl, uri, name, createdMs) }
+        val r = withContext(Dispatchers.IO) { Ingest.submit(context, uri, name, createdMs) }
         settings.setNoteId(clipId, r.id)
         if (snackbar.showSnackbar("Sent to Turnwise ✓", actionLabel = "Open") == SnackbarResult.ActionPerformed) openNote(r.id)
     } catch (t: Throwable) {

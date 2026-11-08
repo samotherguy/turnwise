@@ -135,7 +135,7 @@ object Cardputer {
         files.forEach { it.delete() }
         onProgress("Sending to Turnwise", 0.75f)
         val settings = Settings(context)
-        val up = Turnwise.upload(context, settings.turnwiseUrl, Uri.fromFile(out), name, stamp) { p -> onProgress("Sending to Turnwise", 0.75f + 0.25f * p) }
+        val up = Ingest.submit(context, Uri.fromFile(out), name, stamp) { p -> onProgress("Sending to Turnwise", 0.75f + 0.25f * p) }
         out.delete()
         up
     }
