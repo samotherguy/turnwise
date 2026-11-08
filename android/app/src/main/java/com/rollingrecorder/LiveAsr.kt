@@ -132,7 +132,11 @@ object LiveAsr {
 
     private fun transcribe(pcm: ByteArray): String {
         val wav = ByteArrayOutputStream(pcm.size + 44).apply { write(wavHeader(pcm.size)); write(pcm) }.toByteArray()
-        val body = JSONObject().put("temperature", 0).put("max_tokens", 160).put("messages", JSONArray().put(
+        // Speech is ~3 words a second; a cap tied to the window length stops a decoding loop early, and a mild
+        // repetition penalty makes the loop less likely in the first place without flattening real repeats.
+        val seconds = pcm.size / 2 / SAMPLE_RATE
+        val body = JSONObject().put("temperature", 0).put("max_tokens", (seconds * 8 + 16).coerceIn(24, 160))
+            .put("repeat_penalty", 1.1).put("repeat_last_n", 48).put("messages", JSONArray().put(
             JSONObject().put("role", "user").put("content", JSONArray()
                 .put(JSONObject().put("type", "input_audio").put("input_audio", JSONObject().put("data", Base64.encodeToString(wav, Base64.NO_WRAP)).put("format", "wav")))
                 .put(JSONObject().put("type", "text").put("text", "Transcribe this audio.")))))
@@ -151,7 +155,25 @@ object LiveAsr {
     private fun clean(raw: String): String {
         val t = raw.replace(Regex("^\\s*language\\s+\\w+\\s*<asr_text>"), "").trim()
         if (t.equals("Transcribe this audio.", ignoreCase = true) || t.none { it.isLetterOrDigit() }) return ""
-        return Hinglish.latin(t)          // one script whichever the recogniser picked for this window
+        return Hinglish.latin(collapseRepeats(t))   // one script whichever the recogniser picked for this window
+    }
+
+    /** A phrase of 1 to 4 words repeated three or more times in a row is a decoder loop: keep two. */
+    private fun collapseRepeats(text: String): String {
+        val w = text.split(Regex("\\s+")).filter { it.isNotEmpty() }.toMutableList()
+        var i = 0
+        while (i < w.size) {
+            var cut = false
+            for (n in 1..4) {
+                if (i + 3 * n > w.size) break
+                val a = w.subList(i, i + n).map { it.lowercase().trim(',', '.', '!', '?') }
+                var reps = 1
+                while (i + (reps + 1) * n <= w.size && w.subList(i + reps * n, i + (reps + 1) * n).map { it.lowercase().trim(',', '.', '!', '?') } == a) reps++
+                if (reps >= 3) { repeat((reps - 2) * n) { w.removeAt(i + 2 * n) }; cut = true; break }
+            }
+            if (!cut) i++
+        }
+        return w.joinToString(" ")
     }
 
     private fun wavHeader(dataLen: Int): ByteArray {
