@@ -54,6 +54,7 @@ object PhonePipeline {
                 }
             }
             LlamaServer.release()
+            System.gc()
 
             stage("summarizing", "Writing the summary")
             val llm = LlamaServer.acquire(context, Models.LLM, ctx = 7168)
