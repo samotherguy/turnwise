@@ -21,6 +21,18 @@ object Turnwise {
         context: Context, baseUrl: String, uri: Uri, name: String, createdMs: Long,
         title: String = "", folder: String = "", onProgress: (Float) -> Unit = {},
     ): Uploaded {
+        Waker.init(context)
+        // Sending is explicit, so this is the one place the app wakes the box by itself: wake, wait, send the whole file again.
+        return try { once(context, baseUrl, uri, name, createdMs, title, folder, onProgress) } catch (e: IOException) {
+            if (!Waker.wakeAndWait()) throw e
+            once(context, baseUrl, uri, name, createdMs, title, folder, onProgress)
+        }
+    }
+
+    private fun once(
+        context: Context, baseUrl: String, uri: Uri, name: String, createdMs: Long,
+        title: String, folder: String, onProgress: (Float) -> Unit,
+    ): Uploaded {
         val base = baseUrl.trim().trimEnd('/')
         require(base.startsWith("http")) { "Set the Turnwise address in settings first" }
         val size = context.contentResolver.openFileDescriptor(uri, "r")!!.use { it.statSize }

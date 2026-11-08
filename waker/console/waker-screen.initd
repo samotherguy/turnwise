@@ -1,0 +1,10 @@
+#!/sbin/openrc-run
+description="waker phone: power-key backlight toggle and framebuffer touch keyboard"
+command="/usr/bin/python3"
+command_args="/usr/local/bin/waker-screen.py"
+command_background=true
+pidfile="/run/waker-screen.pid"
+output_log="/var/log/waker-screen.log"
+error_log="/var/log/waker-screen.log"
+depend() { need localmount; after modules; }
+start_pre() { modprobe uinput 2>/dev/null; [ -f /usr/share/consolefonts/ter-u32n.psf.gz ] && setfont /usr/share/consolefonts/ter-u32n.psf.gz -C /dev/tty1 2>/dev/null; return 0; }

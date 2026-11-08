@@ -122,6 +122,8 @@ class RecordingEngine(
                     if (silencedByAndroid) {
                         closeChunk("silenced by Android")
                         setStatus(Status.PAUSED)
+                        // Only a call (the audio mode says so) is worth a second stream; another app holding the mic is not.
+                        if (settings.callCapture && CallCaptureService.enabled(context) && audioManager.mode != AudioManager.MODE_NORMAL) captureCall(audioManager)
                     } else {
                         setStatus(Status.RECORDING)
                         handleAudio(pcm, n)
@@ -136,6 +138,49 @@ class RecordingEngine(
         }
     }
 
+    /**
+     * While the normal stream is silenced by a call, open a second one with the voice-recognition source:
+     * with an enabled accessibility service Android lets that one through on many phones. Runs until the
+     * call ends and writes into the same rolling buffer. The end of the call is read from the audio mode:
+     * the normal stream never un-silences while this one exists, since Android feeds only an app's newest stream.
+     */
+    private fun captureCall(audioManager: AudioManager) {
+        val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
+        val rec = AudioRecord(MediaRecorder.AudioSource.VOICE_RECOGNITION, SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
+            AudioFormat.ENCODING_PCM_16BIT, maxOf(minBuf * 4, CAPTURE_BUFFER_BYTES))
+        val blockedRef = java.util.concurrent.atomic.AtomicBoolean(false)
+        val callback = object : AudioManager.AudioRecordingCallback() {
+            override fun onRecordingConfigChanged(configs: List<AudioRecordingConfiguration>) {
+                blockedRef.set(configs.firstOrNull { it.clientAudioSessionId == rec.audioSessionId }?.isClientSilenced ?: false)
+                RecorderState.callBlocked.value = blockedRef.get()
+            }
+        }
+        try {
+            if (rec.state != AudioRecord.STATE_INITIALIZED) { Log.w(TAG, "call capture: could not open"); return }
+            audioManager.registerAudioRecordingCallback(callback, Handler(Looper.getMainLooper()))
+            rec.startRecording()
+            val pcm = ByteArray(READ_BYTES)
+            var normalSince = 0L
+            while (running) {
+                if (audioManager.mode == AudioManager.MODE_NORMAL) {           // call over; a second of grace for mode flicker
+                    if (normalSince == 0L) normalSince = System.currentTimeMillis() else if (System.currentTimeMillis() - normalSince > 1_000) break
+                } else normalSince = 0L
+                val n = rec.read(pcm, 0, pcm.size)
+                if (n < 0) { Log.w(TAG, "call capture read $n"); break }
+                val blocked = blockedRef.get()
+                if (n > 0 && !blocked) { setStatus(Status.CALL); handleAudio(pcm, n) }
+                else if (blocked) setStatus(Status.PAUSED)
+                serveFlushRequests()
+            }
+            closeChunk("call ended")
+        } finally {
+            try { audioManager.unregisterAudioRecordingCallback(callback) } catch (_: Throwable) {}
+            try { rec.stop() } catch (_: Throwable) {}
+            rec.release()
+            RecorderState.callBlocked.value = false
+        }
+    }
+
     private fun handleAudio(pcm: ByteArray, n: Int) {
         val w = writer ?: run {
             // The first byte of this read happened roughly (n / 2 / rate) seconds ago.
@@ -143,6 +188,7 @@ class RecordingEngine(
             ChunkWriter(store.dir, startMs).also { writer = it }
         }
         w.write(pcm, n)
+        RecorderState.liveSink?.invoke(pcm, n)
         RecorderState.live.value = LiveChunk(w.startMs, w.levels())
         if (w.durationMs() >= CHUNK_MS) closeChunk("full")
     }

@@ -1,6 +1,6 @@
-build/
+*.iml
 .gradle/
+build/
 local.properties
-*.apk
-*.aab
 .idea/
+*.apk

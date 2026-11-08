@@ -124,7 +124,7 @@ class RecorderService : Service() {
             try {
                 val now = System.currentTimeMillis()
                 val r = ClipExporter.export(this@RecorderService, ChunkStore(this@RecorderService), now - SEND_LAST_MS, now)
-                val up = Turnwise.upload(this@RecorderService, settings.turnwiseUrl, r.uri, r.name, now - SEND_LAST_MS)
+                val up = Ingest.submit(this@RecorderService, r.uri, r.name, now - SEND_LAST_MS)
                 settings.setNoteId(r.id, up.id)
                 Notifications.postSend(this@RecorderService, "Sent to Turnwise ✓", "${r.name} · tap to open", up.id)
             } catch (t: Throwable) {

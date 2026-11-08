@@ -14,11 +14,11 @@ class TurnwiseTest {
         val done = Parse.note(JSONObject("""
             {"id":"2026-10-27-220419-clip","title":"Standup","created":"2026-10-27T21:58:26","folder":"",
              "duration":287.4,"status":{"state":"done","detail":"","at":1.7e9},"warning":null,"backend":"qwen",
-             "summary":"- **Ship** it","speakers":{"SPEAKER_00":"Rohan","SPEAKER_01":null},
+             "summary":"- **Ship** it","speakers":{"SPEAKER_00":"Mayank","SPEAKER_01":null},
              "segments":[{"start":1.5,"end":4,"speaker":"SPEAKER_01","text":"haan","hinglish":"haan","english":"yes"}],
              "action_items":[{"owner":"","item":"Send deck"},{"owner":"Priya","item":"Book room"}]}
         """))
-        assertEquals("Rohan", done.speakerName("SPEAKER_00"))
+        assertEquals("Mayank", done.speakerName("SPEAKER_00"))
         assertEquals("Speaker 2", done.speakerName("SPEAKER_01"))
         assertEquals(1, done.segments.size)
         assertNull(done.actionItems[0].owner)
@@ -49,9 +49,9 @@ class TurnwiseTest {
 
     @Test
     fun speakerHuesMatchTheWebApp() {
-        // Expected values computed by the web app's own hue() in node, with palette ["Priya", "Rohan"].
-        val p = listOf("Priya", "Rohan")
-        val expected = mapOf("Priya" to 212, "Rohan" to 340, "Speaker 1" to 230, "Speaker 12" to 358, "Meera" to 247, "Arjun" to 171, "अमित" to 233)
+        // Expected values computed by the web app's own hue() in node, with palette ["Mayank", "Priya"].
+        val p = listOf("Mayank", "Priya")
+        val expected = mapOf("Mayank" to 212, "Priya" to 340, "Speaker 1" to 230, "Speaker 12" to 358, "Jaron" to 203, "Abhyuday" to 146, "अमित" to 233)
         expected.forEach { (name, hue) -> assertEquals(name, hue, Voices.hue(name, p)) }
     }
 

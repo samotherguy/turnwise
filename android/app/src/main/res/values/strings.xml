@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="widget_description">Start or stop listening with one tap</string>
+    <string name="call_capture_description">Lets Turnwise keep recording during phone calls. It reads nothing from the screen.</string>
 </resources>

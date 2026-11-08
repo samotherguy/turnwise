@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The play flavour carries no accessibility service: Play Protect (enhanced fraud protection, Singapore) refuses to
+     sideload any app that declares one, and Play's accessibility policy forbids call recording through one. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <service android:name=".CallCaptureService" tools:node="remove" />
+    </application>
+</manifest>

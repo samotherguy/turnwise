@@ -15,6 +15,8 @@ object Notifications {
     const val ID_RECORDING = 1
     const val ID_ATTENTION = 2
     const val ID_SEND = 3
+    const val ID_TRANSCRIBE = 4
+    const val CHANNEL_SEND = CHANNEL_RECORDING
 
     fun ensureChannels(context: Context) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -44,6 +46,7 @@ object Notifications {
         val title = when (status) {
             Status.RECORDING -> "Listening"
             Status.PAUSED -> "Paused · another app has the mic"
+            Status.CALL -> "Recording the call"
             Status.RETRYING -> "Waiting for the microphone"
             Status.STOPPED, Status.STARTING -> "Starting…"
         }

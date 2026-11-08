@@ -3,7 +3,7 @@
 <rect width="1320" height="920" fill="#FFFFFF"/>
 <rect x="0" y="0" width="14" height="920" fill="#1DB954"/>
 <text x="36" y="40" font-size="22" font-weight="700" fill="#1F2328">Turnwise for Android: app architecture</text>
-<text x="36" y="64" font-size="13" fill="#57606A">Kotlin and Jetpack Compose, no third-party libraries beyond AndroidX. One foreground service owns the microphone.</text>
+<text x="36" y="64" font-size="13" fill="#57606A">Kotlin and Jetpack Compose on AndroidX, plus sherpa-onnx and a bundled llama.cpp server for the on-device mode. One foreground service owns the microphone.</text>
 <rect x="250" y="100" width="770" height="660" rx="10" fill="#F2FBF5" stroke="#1DB954" stroke-width="1.6"/>
 <text x="264" y="122" font-size="14" font-weight="700" fill="#0E7A36">Turnwise Android app</text>
 <rect x="270" y="140" width="730" height="170" rx="10" fill="#FFFFFF" stroke="#B7E4C7" stroke-width="1.1"/>
@@ -28,8 +28,8 @@
 <text x="492.0" y="234.0" text-anchor="middle" font-size="12" fill="#57606A">cited sources</text>
 <rect x="571" y="175" width="128" height="74" rx="8" fill="#FFFFFF" stroke="#8C959F" stroke-width="1.1"/>
 <text x="635.0" y="201.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1F2328">Listen</text>
-<text x="635.0" y="218.0" text-anchor="middle" font-size="12" fill="#57606A">loudness wave,</text>
-<text x="635.0" y="234.0" text-anchor="middle" font-size="12" fill="#57606A">pick a moment</text>
+<text x="635.0" y="218.0" text-anchor="middle" font-size="12" fill="#57606A">phone buffer or</text>
+<text x="635.0" y="234.0" text-anchor="middle" font-size="12" fill="#57606A">the Cardputer</text>
 <rect x="714" y="175" width="128" height="74" rx="8" fill="#FFFFFF" stroke="#8C959F" stroke-width="1.1"/>
 <text x="778.0" y="201.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1F2328">Clips</text>
 <text x="778.0" y="218.0" text-anchor="middle" font-size="12" fill="#57606A">saved clips,</text>
@@ -37,17 +37,18 @@
 <rect x="857" y="175" width="128" height="74" rx="8" fill="#FFFFFF" stroke="#8C959F" stroke-width="1.1"/>
 <text x="921.0" y="201.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1F2328">Settings</text>
 <text x="921.0" y="218.0" text-anchor="middle" font-size="12" fill="#57606A">window, server,</text>
-<text x="921.0" y="234.0" text-anchor="middle" font-size="12" fill="#57606A">voices</text>
+<text x="921.0" y="234.0" text-anchor="middle" font-size="12" fill="#57606A">voices, power</text>
 <rect x="285" y="258" width="700" height="40" rx="8" fill="#FFFFFF" stroke="#8C959F" stroke-width="1.1"/>
-<text x="635.0" y="282.5" text-anchor="middle" font-size="13" font-weight="700" fill="#1F2328">Shell: tabs, back stack, mini player, Blip and Bolt</text>
+<text x="635.0" y="282.5" text-anchor="middle" font-size="13" font-weight="700" fill="#1F2328">Shell: tabs, back stack, mini player, Frito and Ramona</text>
 <rect x="285" y="340" width="330" height="90" rx="8" fill="#FFFFFF" stroke="#8C959F" stroke-width="1.1"/>
 <text x="450.0" y="374.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1F2328">PreviewPlayer</text>
 <text x="450.0" y="391.0" text-anchor="middle" font-size="12" fill="#57606A">one MediaPlayer for previews, clips and</text>
 <text x="450.0" y="407.0" text-anchor="middle" font-size="12" fill="#57606A">note audio streamed from the server</text>
 <rect x="655" y="340" width="345" height="90" rx="8" fill="#FFFFFF" stroke="#8C959F" stroke-width="1.1"/>
-<text x="827.5" y="374.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1F2328">Api client</text>
-<text x="827.5" y="391.0" text-anchor="middle" font-size="12" fill="#57606A">notes, chats, settings, uploads</text>
-<text x="827.5" y="407.0" text-anchor="middle" font-size="12" fill="#57606A">HttpURLConnection, org.json, 20 s cap</text>
+<text x="827.5" y="366.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1F2328">Api client</text>
+<text x="827.5" y="383.0" text-anchor="middle" font-size="12" fill="#57606A">notes, chats, settings, uploads</text>
+<text x="827.5" y="399.0" text-anchor="middle" font-size="12" fill="#57606A">HttpURLConnection, org.json, 20 s cap</text>
+<text x="827.5" y="415.0" text-anchor="middle" font-size="12" fill="#57606A">Waker: wake the box when it is off</text>
 <rect x="285" y="500" width="132" height="96" rx="8" fill="#FFFFFF" stroke="#8C959F" stroke-width="1.1"/>
 <text x="351.0" y="529.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1F2328">Widget and</text>
 <text x="351.0" y="546.0" text-anchor="middle" font-size="12" fill="#57606A">notification:</text>
@@ -79,6 +80,20 @@
 <text x="1185.0" y="383.0" text-anchor="middle" font-size="12" fill="#57606A">over Tailscale, HTTPS</text>
 <text x="1185.0" y="399.0" text-anchor="middle" font-size="12" fill="#57606A">the same API as the</text>
 <text x="1185.0" y="415.0" text-anchor="middle" font-size="12" fill="#57606A">web app</text>
+<rect x="1080" y="480" width="210" height="120" rx="8" fill="#FFF6EE" stroke="#F68B35" stroke-width="1.6"/>
+<text x="1185.0" y="505.0" text-anchor="middle" font-size="14" font-weight="700" fill="#9A4A12">Cardputer</text>
+<text x="1185.0" y="522.0" text-anchor="middle" font-size="12" fill="#57606A">on the same Wi-Fi,</text>
+<text x="1185.0" y="538.0" text-anchor="middle" font-size="12" fill="#57606A">found over mDNS</text>
+<text x="1185.0" y="554.0" text-anchor="middle" font-size="12" fill="#57606A"></text>
+<text x="1185.0" y="570.0" text-anchor="middle" font-size="12" fill="#57606A">chunks pulled, stitched</text>
+<text x="1185.0" y="586.0" text-anchor="middle" font-size="12" fill="#57606A">and sent as one file</text>
+<rect x="1080" y="630" width="210" height="130" rx="8" fill="#FFFFFF" stroke="#8C959F" stroke-width="1.1"/>
+<text x="1185.0" y="660.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1F2328">On the phone (opt-in)</text>
+<text x="1185.0" y="677.0" text-anchor="middle" font-size="12" fill="#57606A">llama.cpp server, GPU:</text>
+<text x="1185.0" y="693.0" text-anchor="middle" font-size="12" fill="#57606A">Qwen3-ASR, Qwen3.5 2B</text>
+<text x="1185.0" y="709.0" text-anchor="middle" font-size="12" fill="#57606A">sherpa-onnx: speakers</text>
+<text x="1185.0" y="725.0" text-anchor="middle" font-size="12" fill="#57606A">Live lines (11), phone</text>
+<text x="1185.0" y="741.0" text-anchor="middle" font-size="12" fill="#57606A">notes and Ask (12)</text>
 <rect x="270" y="810" width="730" height="70" rx="8" fill="#FFFFFF" stroke="#8C959F" stroke-width="1.1"/>
 <text x="635.0" y="842.0" text-anchor="middle" font-size="14" font-weight="700" fill="#1F2328">Android platform</text>
 <text x="635.0" y="859.0" text-anchor="middle" font-size="12" fill="#57606A">AudioRecord · MediaCodec · MediaMuxer · MediaStore (Recordings) · MediaPlayer</text>
@@ -90,6 +105,13 @@
 <text x="457" y="329.0" text-anchor="start" font-size="11" fill="#57606A" paint-order="stroke" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round">play</text>
 <path d="M1000,385 L1080,385" fill="none" stroke="#3B4148" stroke-width="1.5" marker-end="url(#arrow)" marker-start="url(#arrow)"/>
 <text x="1040.0" y="379" text-anchor="middle" font-size="11" fill="#57606A" paint-order="stroke" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round">REST, audio</text>
+<path d="M1000,415 L1050,415 L1050,540 L1080,540" fill="none" stroke="#3B4148" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="1065.0" y="521" text-anchor="middle" font-size="11" fill="#57606A" paint-order="stroke" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round">status,</text>
+<text x="1065.0" y="534" text-anchor="middle" font-size="11" fill="#57606A" paint-order="stroke" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round">chunks</text>
+<path d="M1000,425 L1040,425 L1040,690 L1080,690" fill="none" stroke="#3B4148" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="1060.0" y="684" text-anchor="middle" font-size="11" fill="#57606A" paint-order="stroke" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round">notes</text>
+<path d="M1000,720 L1080,720" fill="none" stroke="#3B4148" stroke-width="1.5" marker-end="url(#arrow)"/>
+<text x="1040.0" y="714" text-anchor="middle" font-size="11" fill="#57606A" paint-order="stroke" stroke="#FFFFFF" stroke-width="4" stroke-linejoin="round">live audio</text>
 <path d="M417,548 L427,548" fill="none" stroke="#3B4148" stroke-width="1.5" marker-end="url(#arrow)"/>
 <path d="M559,548 L569,548" fill="none" stroke="#3B4148" stroke-width="1.5" marker-end="url(#arrow)"/>
 <path d="M701,548 L711,548" fill="none" stroke="#3B4148" stroke-width="1.5" marker-end="url(#arrow)"/>
@@ -118,6 +140,8 @@
 <text x="285" y="344.5" text-anchor="middle" font-size="12" font-weight="700" fill="#1F2328">7</text>
 <circle cx="285" cy="500" r="11" fill="#FFD54F" stroke="#1F2328" stroke-width="1"/>
 <text x="285" y="504.5" text-anchor="middle" font-size="12" font-weight="700" fill="#1F2328">8</text>
+<circle cx="1080" cy="630" r="11" fill="#FFD54F" stroke="#1F2328" stroke-width="1"/>
+<text x="1080" y="634.5" text-anchor="middle" font-size="12" font-weight="700" fill="#1F2328">12</text>
 <rect x="96" y="894" width="14" height="14" rx="3" fill="#EEF4FF" stroke="#6E8FD6" stroke-width="1.4"/>
 <rect x="311" y="894" width="14" height="14" rx="3" fill="#F2FBF5" stroke="#1DB954" stroke-width="1.4"/>
 <rect x="526" y="894" width="14" height="14" rx="3" fill="#FFF6EE" stroke="#F68B35" stroke-width="1.4"/>

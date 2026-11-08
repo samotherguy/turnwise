@@ -113,13 +113,16 @@ class Uploads {
 
 private data class Tab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
 private val TABS = listOf(
-    Tab("Notes", Icons.Rounded.Notes),
     Tab("Listen", Icons.Rounded.GraphicEq),
+    Tab("Notes", Icons.Rounded.Notes),
     Tab("Ask", Icons.AutoMirrored.Rounded.Chat),
     Tab("Clips", Icons.Rounded.LibraryMusic),
     Tab("Settings", Icons.Rounded.Settings),
 )
-const val TAB_LISTEN = 1
+// Listen is home: it works offline. Notes and Ask need the server, so going there is what wakes the box.
+const val TAB_LISTEN = 0
+const val TAB_NOTES = 1
+const val TAB_ASK = 2
 const val TAB_CLIPS = 3
 
 @Composable
@@ -137,7 +140,9 @@ fun TurnwiseApp(incoming: MutableState<Intent?>) {
     LaunchedEffect(listen.sel) { renderPreview(context, listen, player, snackbar) }
     LaunchedEffect(player.playing) { while (player.playing) { player.tick(); delay(100) } }
 
-    val openNote: (String) -> Unit = { nav.push(Screen.NoteS(it)) }
+    /** Going somewhere that needs Turnwise: wake the box if it is off, in the background. */
+    fun needServer() { scope.launch(Dispatchers.IO) { Waker.wakeIfOff() } }
+    val openNote: (String) -> Unit = { nav.push(Screen.NoteS(it)); needServer() }
     fun upload(uris: List<Uri>, folder: String) {
         if (uploads.label != null || uris.isEmpty()) return
         scope.launch { runUploads(context, uploads, uris, folder, snackbar, openNote) }
@@ -147,17 +152,17 @@ fun TurnwiseApp(incoming: MutableState<Intent?>) {
     LaunchedEffect(incoming.value) {
         val i = incoming.value ?: return@LaunchedEffect
         incoming.value = null
-        i.getStringExtra(EXTRA_NOTE)?.let { nav.goTab(0); openNote(it); return@LaunchedEffect }
+        i.getStringExtra(EXTRA_NOTE)?.let { nav.goTab(TAB_NOTES); openNote(it); return@LaunchedEffect }
         val uris = when (i.action) {
             Intent.ACTION_SEND -> listOfNotNull(i.streamExtra())
             Intent.ACTION_SEND_MULTIPLE -> i.streamExtras()
             else -> emptyList()
         }
-        if (uris.isNotEmpty()) { nav.goTab(0); upload(uris, "") }
+        if (uris.isNotEmpty()) { nav.goTab(TAB_NOTES); upload(uris, "") }
     }
 
     BackHandler(nav.stack.isNotEmpty()) { nav.pop() }
-    BackHandler(nav.stack.isEmpty() && nav.tab != 0) { nav.tab = 0 }
+    BackHandler(nav.stack.isEmpty() && nav.tab != TAB_LISTEN) { nav.tab = TAB_LISTEN }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
@@ -182,7 +187,7 @@ fun TurnwiseApp(incoming: MutableState<Intent?>) {
                     TABS.forEachIndexed { i, t ->
                         NavigationBarItem(
                             selected = nav.tab == i,
-                            onClick = { nav.goTab(i) },
+                            onClick = { nav.goTab(i); if (i == TAB_NOTES || i == TAB_ASK) needServer() },
                             icon = { Icon(t.icon, null) }, label = { Text(t.label, style = MaterialTheme.typography.labelSmall, maxLines = 1) },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Color.Black, selectedTextColor = Color.White,
@@ -214,6 +219,7 @@ fun TurnwiseApp(incoming: MutableState<Intent?>) {
                     is Screen.NoteS -> NoteScreen(
                         t.id, t.atSec, player, snackbar, pad, back = nav::pop,
                         openChats = { nav.push(Screen.ChatsS(it)) },
+                        openNote = { nid -> nav.push(Screen.NoteS(nid)) }
                     )
                     is Screen.ChatsS -> ChatsScreen(t.note, snackbar, pad, back = nav::pop, openChat = { nav.push(Screen.ChatS(it)) })
                     is Screen.ChatS -> ChatScreen(
@@ -221,13 +227,23 @@ fun TurnwiseApp(incoming: MutableState<Intent?>) {
                         openNote = { id, at -> nav.push(Screen.NoteS(id, at)) },
                         openChat = { nav.pop(); nav.push(Screen.ChatS(it)) },
                     )
-                    0 -> NotesTab(snackbar, pad, uploads, openNote = openNote, upload = ::upload)
-                    1 -> ListenTab(listen, player, snackbar, pad, openNote)
+                    TAB_LISTEN -> ListenTab(listen, player, snackbar, pad, openNote)
+                    TAB_NOTES -> NotesTab(snackbar, pad, uploads, openNote = openNote, upload = ::upload)
                     2 -> ChatsScreen(null, snackbar, pad, back = null, openChat = { nav.push(Screen.ChatS(it)) })
                     3 -> ClipsTab(player, snackbar, pad, openNote)
                     else -> SettingsTab(pad)
                 }
             }
+        }
+        val wakeMod = Modifier.padding(top = padding.calculateTopPadding() + 8.dp, start = 16.dp, end = 16.dp)
+        val phase = Waker.phase
+        if (phase != null) Box(wakeMod) { Banner(phase) }
+        else if (Waker.serverOff) Row(
+            wakeMod.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Raised).padding(start = 14.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Turnwise server is off", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+            androidx.compose.material3.TextButton(onClick = { scope.launch(Dispatchers.IO) { Waker.wakeAndWait() } }) { Text("Wake", color = Green) }
         }
         // Lists scroll under a solid status bar, not through the clock.
         Box(Modifier.fillMaxWidth().windowInsetsTopHeight(WindowInsets.statusBars).background(Ink))
@@ -320,7 +336,7 @@ suspend fun runUploads(
         up.progress = 0f
         try {
             done += withContext(Dispatchers.IO) {
-                Turnwise.upload(context, base, uri, name, modifiedMs(context, uri) ?: System.currentTimeMillis(), folder = folder) { up.progress = it }
+                Ingest.submit(context, uri, name, modifiedMs(context, uri) ?: System.currentTimeMillis(), folder = folder) { up.progress = it }
             }
         } catch (t: Throwable) {
             failed = t.message ?: "failed"

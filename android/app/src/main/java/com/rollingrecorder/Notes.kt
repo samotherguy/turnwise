@@ -87,6 +87,7 @@ fun NotesTab(snackbar: SnackbarHostState, padding: PaddingValues, uploads: Uploa
     var q by rememberSaveable { mutableStateOf("") }
     var query by rememberSaveable { mutableStateOf("") }
     var view by rememberSaveable { mutableStateOf(settings.notesView) }
+    var where by rememberSaveable { mutableStateOf("all") }        // all / phone / box
     LaunchedEffect(q) { delay(250); query = q.trim() }
 
     val notes = rememberPolled("notes|$query|${Bus.notesVersion}", cacheKey = "notes|$query", every = { list -> if (list.any { it.status.busy }) 3_000L else null }) {
@@ -129,20 +130,26 @@ fun NotesTab(snackbar: SnackbarHostState, padding: PaddingValues, uploads: Uploa
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            val hasPhone = notes.value?.any { LocalNotes.isLocal(it.id) } == true
             if (query.isEmpty()) item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("date" to "By date", "folder" to "By folder").forEach { (v, l) ->
                         Pill(l, view == v) { view = v; settings.notesView = v }
                     }
+                    if (hasPhone) {
+                        Spacer(Modifier.width(8.dp))
+                        listOf("all" to "All", "phone" to "Phone", "box" to "Box").forEach { (v, l) -> Pill(l, where == v) { where = v } }
+                    }
                 }
             }
             notes.error?.let { item { Banner(it, error = true) } }
-            val list = notes.value
+            Api.serverListError?.let { if (notes.value != null) item { Banner("Box notes are not showing: $it") } }
+            val list = notes.value?.filter { where == "all" || (where == "phone") == LocalNotes.isLocal(it.id) }
             when {
                 list == null -> item { Text("Loading…", style = MaterialTheme.typography.bodySmall) }
                 list.isEmpty() -> item {
                     Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 24.dp)) {
-                        Duo(if (query.isNotEmpty()) Mood.THINK else Mood.SLEEP, Modifier.width(200.dp))
+                        Duo(if (query.isNotEmpty()) Mood.THINK else Mood.SLEEP, Modifier.width(200.dp), caption = true)
                         Spacer(Modifier.height(16.dp))
                         Text(
                             if (query.isNotEmpty()) "No matches." else "No notes yet. Record a meeting, upload a file, or send a moment from Listen.",
@@ -206,7 +213,7 @@ private fun Brand() {
         Spacer(Modifier.width(12.dp))
         Text("Turnwise", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.weight(1f))
-        Duo(Mood.CHAT, Modifier.width(150.dp), celebrate = Bus.notesVersion)
+        Duo(Mood.CHAT, Modifier.width(150.dp), celebrate = Bus.notesVersion, caption = true)
     }
 }
 
@@ -236,6 +243,10 @@ fun NoteRow(n: NoteSummary, showDate: Boolean, showFolder: Boolean, onClick: () 
             ).joinToString(" · ")
             Text(sub, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             n.snippet?.let { Text(it.replace("**", "").lineSequence().first(), style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.8f), maxLines = 2, overflow = TextOverflow.Ellipsis) }
+        }
+        if (LocalNotes.isLocal(n.id)) {
+            Spacer(Modifier.width(8.dp))
+            Surface(shape = CircleShape, color = Color(0xFF2A2A3A)) { Text("On phone", style = MaterialTheme.typography.labelSmall, color = Mist, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) }
         }
         if (st != "done") {
             Spacer(Modifier.width(8.dp))
@@ -337,7 +348,7 @@ private fun RecordPanel(snackbar: SnackbarHostState, openNote: (String) -> Unit)
                     val to = System.currentTimeMillis()
                     val store = ChunkStore(context)
                     val r = withContext(Dispatchers.IO) { ClipExporter.export(context, store, from, to) }
-                    val up = withContext(Dispatchers.IO) { Turnwise.upload(context, settings.turnwiseUrl, r.uri, r.name, from, title = title.trim()) }
+                    val up = withContext(Dispatchers.IO) { Ingest.submit(context, r.uri, r.name, from, title = title.trim()) }
                     settings.setNoteId(r.id, up.id)
                     settings.recordMark = 0
                     mark = 0

@@ -33,6 +33,43 @@ class Settings(context: Context) {
             prefs.edit().putString("turnwise_url", value).apply()
         }
 
+    /** The waker phone's HTTPS address, e.g. https://waker.tailnet.ts.net:8491 */
+    var wakerUrl: String
+        get() = prefs.getString("waker_url", DEFAULT_WAKER_URL) ?: DEFAULT_WAKER_URL
+        set(value) {
+            prefs.edit().putString("waker_url", value).apply()
+        }
+
+    /** Where Listen records: "phone" (this device's mic) or "cardputer" (the Cardputer on the network). */
+    /** "box" (today's path) or "phone" (everything on the device, nothing leaves it). */
+    var transcribeOn: String
+        get() = prefs.getString("transcribe_on", "box") ?: "box"
+        set(value) { prefs.edit().putString("transcribe_on", value).apply() }
+
+    /** "auto" (1.7B when memory allows), "light" (always the 0.6B) or "better" (always the 1.7B). */
+    var asrQuality: String
+        get() = prefs.getString("asr_quality", "auto") ?: "auto"
+        set(value) { prefs.edit().putString("asr_quality", value).apply() }
+
+    /** Where model files come from; blank means the box's /models/. */
+    var modelsUrl: String
+        get() = prefs.getString("models_url", "") ?: ""
+        set(value) { prefs.edit().putString("models_url", value.trim().trimEnd('/')).apply() }
+
+    /** Keep recording through calls via the accessibility route (experimental). */
+    var callCapture: Boolean
+        get() = prefs.getBoolean("call_capture", false)
+        set(value) { prefs.edit().putBoolean("call_capture", value).apply() }
+
+    var listenSource: String
+        get() = prefs.getString("listen_source", "phone") ?: "phone"
+        set(value) { prefs.edit().putString("listen_source", value).apply() }
+
+    /** The Cardputer's base URL, e.g. http://192.168.1.18; blank = find it over mDNS. */
+    var cardputerUrl: String
+        get() = prefs.getString("cardputer_url", "") ?: ""
+        set(value) { prefs.edit().putString("cardputer_url", value.trim().trimEnd('/')).apply() }
+
     /** Turnwise note id for a saved clip, keyed by its MediaStore id. */
     fun noteId(mediaId: Long): String? = notes.getString(mediaId.toString(), null)
     fun setNoteId(mediaId: Long, noteId: String) {
@@ -56,6 +93,7 @@ class Settings(context: Context) {
         }
 
     companion object {
-        const val DEFAULT_TURNWISE_URL = ""   // set in the app: your Tailscale Serve address
+        const val DEFAULT_TURNWISE_URL = BuildConfig.TURNWISE_URL   // from local.properties at build time
+        const val DEFAULT_WAKER_URL = BuildConfig.WAKER_URL
     }
 }

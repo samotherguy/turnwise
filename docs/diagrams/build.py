@@ -166,13 +166,15 @@ def system():
     d = Diagram(1320, 950, "Turnwise: system architecture",
                 "Everything runs on your machines and your tailnet. Only an owner's question sent to Claude leaves it.")
     # people and their devices
-    phone = Box(d, "phone", 30, 150, 220, 96, "Phone", ["Turnwise Android app", "always-on rolling buffer"], "actor")
-    web = Box(d, "web", 30, 290, 220, 80, "Phone or laptop", ["Turnwise web app (PWA)"], "actor")
+    card = Box(d, "card", 30, 130, 220, 96, "Cardputer", ["ESP32-S3 pocket recorder", "10 h rolling buffer on SD", "Wi-Fi API, mDNS"], "actor")
+    phone = Box(d, "phone", 30, 270, 220, 96, "Phone", ["Turnwise Android app", "always-on rolling buffer", "or the Cardputer as source"], "actor")
+    web = Box(d, "web", 30, 410, 220, 80, "Phone or laptop", ["Turnwise web app (PWA)"], "actor")
     cc = Box(d, "cc", 30, 620, 220, 96, "Claude Code", ["CLI and skill, on the", "Turnwise machine"], "actor")
+    waker = Box(d, "waker", 30, 760, 220, 120, "Waker phone", ["OnePlus 3, postmarketOS,", "always on, on the tailnet", "Wake-on-LAN for the machines,", "wake page, app button, proxy"], "actor")
     # the edge
-    ts = Box(d, "ts", 300, 150, 170, 220, "Tailscale Serve", ["HTTPS on :8446", "", "adds the visitor's", "tailnet login to", "every request"], "ext")
+    ts = Box(d, "ts", 300, 150, 170, 370, "Tailscale Serve", ["HTTPS on :8446", "", "adds the visitor's", "tailnet login to", "every request"], "ext")
     # the server
-    Box(d, "srv", 510, 100, 520, 800, "Turnwise machine (GPU)", ["One Python service, systemd user unit"], "panel", container=True)
+    srv = Box(d, "srv", 510, 100, 520, 800, "Turnwise machine (GPU)", ["One Python service, systemd user unit"], "panel", container=True)
     api = Box(d, "api", 640, 160, 300, 110, "FastAPI · :8470", ["REST API and the web app", "one notes root per tailnet login", "no login header = local = owner"])
     work = Box(d, "work", 530, 330, 210, 330, "GPU worker", ["one job at a time", "", "1  ffmpeg: mono WAV", "2  DeepFilterNet (CPU)", "3  pyannote: who spoke", "4  Qwen3-ASR + MMS align", "5  match known voices", "6  LLM: Hinglish, English,", "    title, summary, actions"], title_size=14)
     chat = Box(d, "chat", 810, 330, 200, 170, "Chat engine", ["bge-m3 index per note", "retrieve turns", "answer with citations", "sessions kept"])
@@ -181,8 +183,10 @@ def system():
     llm = Box(d, "llm", 1080, 450, 210, 390, "LLM box (optional)", ["Ollama on another", "machine on the tailnet", "", "qwen3.6:35b-a3b", "bge-m3 embeddings", "", "woken by Wake-on-LAN", "powers itself off", "when idle"], "ext")
     claude = Box(d, "claude", 1080, 330, 210, 90, "Anthropic", ["Claude Code headless,", "owner only"], "cloud")
 
-    d.link("phone", "ts", [phone.at("r", 198), ts.at("l", 198)], "HTTPS")
-    d.link("web", "ts", [web.at("r", 330), ts.at("l", 330)], "HTTPS")
+    d.link("card", "phone", [card.at("b", 140), phone.at("t", 140)], "chunks over\nWi-Fi", label_left=True)
+    d.link("phone", "ts", [phone.at("r", 318), ts.at("l", 318)], "HTTPS")
+    d.link("web", "ts", [web.at("r", 450), ts.at("l", 450)], "HTTPS")
+    d.link("waker", "srv", [waker.at("r", 820), srv.at("l", 820)], "Wake-on-LAN,\nshutdown", label_dy=-18)
     d.link("ts", "api", [ts.at("r", 200), api.at("l", 200)], "login header")
     d.link("cc", "api", [cc.at("r", 668), (490, 668), (490, 245), api.at("l", 245)], "local, no header", label_at=2)
     d.link("api", "work", [api.at("b", 690), work.at("t", 690)], "queue a job")
@@ -193,7 +197,7 @@ def system():
     d.link("work", "llm", [work.at("b", 560), (560, 860), (1060, 860), (1060, 825), llm.at("l", 825)], "rewrite and summarise", label_at=1)
     d.link("chat", "llm", [chat.at("r", 480), llm.at("l", 480)], "embed,\nanswer", both=True)
     d.link("chat", "claude", [chat.at("r", 375), claude.at("l", 375)], "owner's choice", dashed=True, both=True)
-    for n, key in [(1, "phone"), (2, "ts"), (3, "api"), (4, "work"), (5, "llm"), (6, "store"), (7, "chat"), (8, "claude"), (9, "cc")]:
+    for n, key in [(1, "phone"), (2, "ts"), (3, "api"), (4, "work"), (5, "llm"), (6, "store"), (7, "chat"), (8, "claude"), (9, "cc"), (10, "card"), (11, "waker")]:
         d.badge(n, key)
     legend(d, 36, 935)
     return d
@@ -202,17 +206,17 @@ def system():
 # ---------- 2. the Android app ----------
 def android():
     d = Diagram(1320, 920, "Turnwise for Android: app architecture",
-                "Kotlin and Jetpack Compose, no third-party libraries beyond AndroidX. One foreground service owns the microphone.")
+                "Kotlin and Jetpack Compose on AndroidX, plus sherpa-onnx and a bundled llama.cpp server for the on-device mode. One foreground service owns the microphone.")
     you = Box(d, "you", 30, 170, 190, 90, "You, in the app", ["five tabs and the", "screens they open"], "actor")
     you2 = Box(d, "you2", 30, 492, 190, 96, "You, outside it", ["home-screen widget,", "notification buttons"], "actor")
     Box(d, "app", 250, 100, 770, 660, "Turnwise Android app", [], "panel", container=True)
     screens = Box(d, "screens", 270, 140, 730, 170, "Screens (Compose)", [], "frame", container=True)
-    names = [("Notes", ["list, search,", "note, transcript"]), ("Ask", ["chats with", "cited sources"]), ("Listen", ["loudness wave,", "pick a moment"]), ("Clips", ["saved clips,", "send, share"]), ("Settings", ["window, server,", "voices"])]
+    names = [("Notes", ["list, search,", "note, transcript"]), ("Ask", ["chats with", "cited sources"]), ("Listen", ["phone buffer or", "the Cardputer"]), ("Clips", ["saved clips,", "send, share"]), ("Settings", ["window, server,", "voices, power"])]
     for i, (t, ls) in enumerate(names):
         Box(d, f"s{i}", 285 + i * 143, 175, 128, 74, t, ls)
-    Box(d, "shell", 285, 258, 700, 40, "Shell: tabs, back stack, mini player, Blip and Bolt", [], title_size=13)
+    Box(d, "shell", 285, 258, 700, 40, "Shell: tabs, back stack, mini player, Frito and Ramona", [], title_size=13)
     player = Box(d, "player", 285, 340, 330, 90, "PreviewPlayer", ["one MediaPlayer for previews, clips and", "note audio streamed from the server"])
-    api = Box(d, "api", 655, 340, 345, 90, "Api client", ["notes, chats, settings, uploads", "HttpURLConnection, org.json, 20 s cap"])
+    api = Box(d, "api", 655, 340, 345, 90, "Api client", ["notes, chats, settings, uploads", "HttpURLConnection, org.json, 20 s cap", "Waker: wake the box when it is off"])
     rec = Box(d, "rec", 270, 460, 730, 280, "Always-on recorder (foreground service, microphone type)", [], "frame", container=True)
     w = 132
     xs = [285 + i * 142 for i in range(5)]
@@ -223,6 +227,8 @@ def android():
     st = Box(d, "st", xs[4], 500, w, 96, "ChunkStore", ["keeps the last", "N hours, pins", "what is in use"])
     ex = Box(d, "ex", xs[4], 640, w, 86, "ClipExporter", ["joins chunks,", "no re-encoding"])
     server = Box(d, "server", 1080, 330, 210, 110, "Turnwise server", ["over Tailscale, HTTPS", "the same API as the", "web app"], "ext")
+    card = Box(d, "card", 1080, 480, 210, 120, "Cardputer", ["on the same Wi-Fi,", "found over mDNS", "", "chunks pulled, stitched", "and sent as one file"], "ext")
+    onphone = Box(d, "onphone", 1080, 630, 210, 130, "On the phone (opt-in)", ["llama.cpp server, GPU:", "Qwen3-ASR, Qwen3.5 2B", "sherpa-onnx: speakers", "Live lines (11), phone", "notes and Ask (12)"])
     plat = Box(d, "plat", 270, 810, 730, 70, "Android platform", ["AudioRecord · MediaCodec · MediaMuxer · MediaStore (Recordings) · MediaPlayer"], "box")
 
     d.link("you", "screens", [you.at("r", 215), screens.at("l", 215)])
@@ -230,6 +236,9 @@ def android():
     d.link("screens", "api", [screens.at("b", 760), api.at("t", 760)], "data", both=True)
     d.link("screens", "player", [screens.at("b", 450), player.at("t", 450)], "play", both=True)
     d.link("api", "server", [api.at("r", 385), server.at("l", 385)], "REST, audio", both=True)
+    d.link("api", "card", [api.at("r", 415), (1050, 415), (1050, 540), card.at("l", 540)], "status,\nchunks", label_at=2, label_left=True)
+    d.link("api", "onphone", [api.at("r", 425), (1040, 425), (1040, 690), onphone.at("l", 690)], "notes", label_at=2, label_dy=-6)
+    d.link("rec", "onphone", [rec.at("r", 720), onphone.at("l", 720)], "live audio")
     d.link("widget", "svc", [widget.at("r", 548), svc.at("l", 548)])
     d.link("svc", "eng", [svc.at("r", 548), eng.at("l", 548)])
     d.link("eng", "wr", [eng.at("r", 548), wr.at("l", 548)])
@@ -238,7 +247,7 @@ def android():
     d.link("plat", "eng", [plat.at("t", 635), eng.at("b", 635)], "microphone", label_left=True)
     d.link("wr", "plat", [wr.at("b", 777), plat.at("t", 777)], "encode, mux", both=True, label_left=True)
     d.link("ex", "plat", [ex.at("b", 919), plat.at("t", 919)], "save to\nRecordings")
-    for n, key in [(1, "svc"), (2, "wr"), (3, "st"), (4, "s2"), (5, "ex"), (6, "api"), (7, "player"), (8, "widget")]:
+    for n, key in [(1, "svc"), (2, "wr"), (3, "st"), (4, "s2"), (5, "ex"), (6, "api"), (7, "player"), (8, "widget"), (12, "onphone")]:
         d.badge(n, key)
     legend(d, 36, 905)
     return d

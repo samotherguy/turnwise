@@ -7,7 +7,7 @@ Self-hosted meeting transcription for conversations that switch between Hindi an
 I built it after noticing what transcription tools do with conversations that switch between Hindi and English: they either force the whole thing into English, write it in Devanagari, or send the audio to someone else's cloud. What I wanted was narrower than "AI meeting notes": capture who said what, verbatim, in the script people actually type in, and be able to ask questions about it later from Claude Code.
 
 <p>
-<img src="docs/android.gif" width="270" alt="The Android app: the home screen with Blip and Bolt taking turns to talk, a note with its summary and a transcript that highlights each turn as it plays, a chat answer with the turns it used, and the Listen tab where the two monsters listen while a moment is picked from the loudness wave">
+<img src="docs/android.gif" width="270" alt="The Android app: the Listen tab with the Cardputer as the source and Frito and Ramona asleep in the recorder card, the notes list with the cats chatting, a note whose transcript highlights each turn as it plays, a chat answer with the moments it drew on, and Settings showing the GPU box and the LLM box online with their Wake and Off buttons">
 &nbsp;
 <img src="docs/app.gif" width="270" alt="The phone app: the home screen with two small monsters taking turns to talk, a transcript with each speaker in their own colour, then a chat question answered from the recordings with the turns it used listed underneath, and one of them playing in a small player with the words on screen">
 &nbsp;
@@ -26,6 +26,8 @@ A turn in the transcript looks like this:
 ## What it does
 
 - **A native Android app that is always listening.** It keeps the last hours of audio in a rolling buffer on the phone, so you can send a conversation after it happened: pick the moment on a loudness wave, play it, send it. The whole of Turnwise is native in the app too: notes, transcripts that follow along as they play, the chat, settings, a home-screen widget, and "send the last 15 minutes" in the notification. See [The Android app](#the-android-app).
+- **A pocket recorder for the days the phone stays away.** An M5Stack Cardputer (an ESP32 handheld with a microphone and a card slot) listens all day into a ten-hour rolling buffer and shows up as a second source on the app's Listen tab: pick the last 15 minutes to 2 hours and it is pulled over Wi-Fi and sent like any recording. It also carries a few small apps of its own. See [`cardputer/`](cardputer).
+- **The GPU box can stay off.** An old phone running postmarketOS sits on the tailnet as a "waker": it wakes the machine over Wake-on-LAN when the app, a browser or the Cardputer needs it, and shuts it down again. The app only wakes it for the screens that need it. See [`waker/`](waker).
 - **Record or upload.** A phone-installable web app (PWA) on your Tailscale network: tap to record, share a file from any app, or upload several large files at once with progress. The note's date comes from the file, not the upload.
 - **Noise removal** for phone recordings in cafés and cars, with the attenuation capped so quiet, far-away speakers are not silenced.
 - **Speaker detection** with voice memory: name "Speaker 2" once and the same voice is named automatically in future recordings.
@@ -33,7 +35,7 @@ A turn in the transcript looks like this:
 - **Title, summary and action items** generated from the content.
 - **Folders, a date view, and dedupe by content hash**: re-sending a file you already transcribed just opens it, whatever it is called.
 - **A chat that answers from the recordings** and shows the moments it drew on: tap one and it plays, with the words on screen. Across everything or inside one note, with sessions kept. Answered by the local model or, for the owner, by Claude Code on their own subscription.
-- **Every voice has a colour.** Each person gets a hue, the same in the transcript, the chat sources and the player, so who said what reads at a glance. Two small monsters on the home screen take turns talking, which is the whole idea.
+- **Every voice has a colour.** Each person gets a hue, the same in the transcript, the chat sources and the player, so who said what reads at a glance. Two cats, Frito and Ramona, drawn from the real ones, act out what the app is doing on every page.
 - **Fast on a phone over a tunnel.** Screens paint before the server answers, going back is instant and keeps your place, and no request hangs: after twenty seconds you get a retry banner.
 - **A Claude Code skill** so that "what did we decide about the draft last week?" is answered from the transcripts.
 - **One engine** behind the web app, the CLI and the bulk importer, so every path produces the same note.
@@ -41,9 +43,9 @@ A turn in the transcript looks like this:
 
 ## Architecture
 
-<img src="docs/architecture.svg" alt="System architecture: the Android app and the web app reach Tailscale Serve over HTTPS; it adds the visitor's login and proxies to a FastAPI service on the Turnwise machine. The API queues jobs for one GPU worker, which writes notes to disk and calls an Ollama LLM, optionally on a second machine woken over Wake-on-LAN. A chat engine reads the notes and answers with the local model or, for the owner, with Claude Code. Claude Code's skill and the CLI call the API locally.">
+<img src="docs/architecture.svg" alt="System architecture: the Cardputer pocket recorder feeds the Android app over Wi-Fi; the Android app and the web app reach Tailscale Serve over HTTPS; it adds the visitor's login and proxies to a FastAPI service on the Turnwise machine. The API queues jobs for one GPU worker, which writes notes to disk and calls an Ollama LLM, optionally on a second machine woken over Wake-on-LAN. A waker phone on the tailnet wakes and shuts down the machines. A chat engine reads the notes and answers with the local model or, for the owner, with Claude Code. Claude Code's skill and the CLI call the API locally.">
 
-1. **Phone.** The Android app keeps a rolling buffer and sends a stretch you pick, or a file you share to it. The web app records or uploads in the browser.
+1. **Phone.** The Android app keeps a rolling buffer and sends a stretch you pick, a file you share to it, or the last minutes from the Cardputer. The web app records or uploads in the browser. With "On this phone" switched on, the app skips the rest of this list and makes the note on the device (item 12 under the app).
 2. **Tailscale Serve** terminates HTTPS on :8446 and stamps every request with the visitor's tailnet login, overwriting anything a client sent.
 3. **FastAPI** turns that login into a notes root (yours, or a guest's own), stores the upload and queues a job. It also serves the web app and the REST API both apps use.
 4. **One GPU worker** runs one job at a time: ffmpeg, DeepFilterNet on the CPU, pyannote and Qwen3-ASR with MMS alignment on the GPU, then matching against known voices.
@@ -52,6 +54,8 @@ A turn in the transcript looks like this:
 7. **A question** retrieves turns with bge-m3, is answered by the local model, and cites the turns it used; tap one to play it.
 8. **The owner can ask Claude instead.** The retrieved turns then leave the tailnet, which is the only path that does.
 9. **Claude Code's skill and the CLI** call the API on the same machine with no login header, so they act as the owner.
+10. **The Cardputer** is a pocket recorder that listens all day into a 10-hour rolling buffer on its card. The app pulls the minutes you want over Wi-Fi and sends them like any recording. See [`cardputer/`](cardputer).
+11. **The waker phone** is an old phone running postmarketOS, always on, on the tailnet: it wakes the GPU machine over Wake-on-LAN when the app or a browser needs it, and shuts it down again, so the box can be off most of the day. See [`waker/`](waker).
 
 The diagrams are drawn by [`docs/diagrams/build.py`](docs/diagrams/build.py), which refuses to write one whose lines do not start and end on a box or that cross a box or each other.
 
@@ -74,6 +78,7 @@ Models load lazily, stay resident between jobs, and unload after ten minutes idl
 | Diarization | pyannote community-1 | The best open diarizer, and its output includes the embeddings the voice memory needs. Gated on Hugging Face (free, CC-BY-4.0). |
 | Word timing | torchaudio MMS forced aligner | Qwen's own aligner has no Hindi. Window mode with alignment matched per-turn mode on a three-minute clip and keeps context on hour-long meetings. |
 | Noise removal | DeepFilterNet3 static binary | No Python dependencies, fast on CPU. Full-strength suppression removed quiet speakers, hence the cap. |
+| On the phone | Qwen3-ASR 0.6B and 1.7B as Q8 GGUF on llama.cpp (OpenCL), pyannote segmentation plus WeSpeaker through sherpa-onnx, Qwen3.5 2B for summaries | Measured on an S24 Ultra: the 1.7B is the box's quality at a third of real time but needs 5 GB, so the 0.6B is the default; Q4_K_M files die on the Adreno's OpenCL, Q8_0 and Q4_0 run; sherpa's clustering at 0.6 matched the box's speaker count best. Qwen3-ASR left to guess the language per window called Hindi TV Chinese, so it is told the language. |
 | Hinglish and summaries | Ollama, `qwen3.5:9b` by default | `qwen3.6:35b-a3b` on a second machine ran at the same speed and was slightly more verbatim (it kept a syllable the 9B dropped). Bigger models improve summaries, not the words or the speakers. |
 
 ## Setup
@@ -98,6 +103,10 @@ tailscale serve --bg --https=8446 http://127.0.0.1:8470
 ```
 
 The app serves everything itself, including its display font, so the phone talks to your machine and nothing else. Open the address Tailscale gives you on the phone and add it to the home screen. The installed app gets a "Start recording" shortcut on long-press and appears in the share sheet, so a recording made with the phone's own voice recorder can be sent straight to it. For long meetings use the native recorder and share: a browser tab does not survive the screen locking or a phone call.
+
+### Optional: the waker phone and the Cardputer
+
+Both are documented on their own: [`waker/README.md`](waker/README.md) turns an old Android phone into the always-on node that wakes the GPU machine (postmarketOS, lk2nd, the waker service, the Tailscale ACL trap), and [`cardputer/README.md`](cardputer/README.md) covers building, flashing and using the pocket recorder. Neither is required; without them the GPU machine simply stays on.
 
 ### A second machine for the LLM
 
@@ -146,18 +155,22 @@ Deleting a known voice also untags that name in every note, so the labels can be
 
 ## The Android app
 
-[`android/`](android) is a native Kotlin and Jetpack Compose app with no third-party libraries beyond AndroidX. It does two things: it listens all the time, so nothing has to be planned, and it is a full Turnwise client.
+[`android/`](android) is a native Kotlin and Jetpack Compose app on AndroidX; the only other libraries are sherpa-onnx and a bundled llama.cpp server, both for the on-device mode. It does three things: it listens all the time, so nothing has to be planned; it is a full Turnwise client; and, if you ask it to, it makes the note itself without the box.
 
-<img src="docs/android-architecture.svg" alt="Android app architecture: five Compose screens on a shell with the mini player and the two monsters; a shared PreviewPlayer and an Api client that talks to the Turnwise server over Tailscale; and an always-on recorder in which a widget and notification drive a foreground RecorderService, a RecordingEngine reading the microphone, a ChunkWriter encoding 30-second AAC chunks, a ChunkStore keeping the last hours, and a ClipExporter that saves clips to Recordings.">
+<img src="docs/android-architecture.svg" alt="Android app architecture: five Compose screens on a shell with the mini player and the two cats; a shared PreviewPlayer and an Api client that talks to the Turnwise server over Tailscale; and an always-on recorder in which a widget and notification drive a foreground RecorderService, a RecordingEngine reading the microphone, a ChunkWriter encoding 30-second AAC chunks, a ChunkStore keeping the last hours, and a ClipExporter that saves clips to Recordings. An opt-in on-the-phone block holds the llama.cpp server with Qwen3-ASR and Qwen3.5 2B and sherpa-onnx for speakers; it gets live audio from the recorder and phone notes from the Api client.">
 
 1. **RecorderService** holds the microphone as a foreground service and comes back if Android kills it.
 2. **ChunkWriter** encodes 30-second AAC chunks at 48 kbps (about 21 MB an hour) and stores one loudness value per second, which draws the wave on the Listen tab.
 3. **ChunkStore** keeps the last 1 to 10 hours, pins chunks while they are being previewed or exported, and keeps a meeting that is being recorded however long it runs.
-4. **Listen** shows the buffer as a loudness wave, with the talking stretches bright. Quick picks zoom in; tap a bright stretch or drag the handles, play it, then save or send.
+4. **Listen** shows the buffer as a loudness wave, with the talking stretches bright. Quick picks zoom in; tap a bright stretch or drag the handles, play it, then save or send. A switch at the top makes the [Cardputer](cardputer) the source instead: the tab then shows only the device, what it holds, and sends the last 15 minutes to 2 hours from it, found on the Wi-Fi by itself.
 5. **ClipExporter** joins chunks without re-encoding into `Recordings/RollingRecorder`. Send uploads that file and opens the note in the app.
 6. **One Api client** serves Notes, Ask and Settings: the same REST API as the web app, with the same 20-second cap, and screens that repaint from their last answer while a job runs.
 7. **PreviewPlayer** is the one player for previews, saved clips and note audio streamed from the server, so the mini player shows who is talking and skips turn by turn.
 8. **The widget** starts and stops listening in one tap; the notification has Stop and "Send last 15 min".
+9. **Frito and Ramona**, the two cats, live on every page and act out what the app is doing: chatting, listening, thinking, asleep, or hunting the feather when something good happens. They are rendered from photos of the real cats with FLUX Kontext on the GPU machine and animated as sprites.
+10. **Power.** Settings shows whether the GPU machine and the LLM box are on, with Wake and Off buttons that go through the waker phone. When the box is off, going to Notes or Ask, opening a note, or sending a recording wakes it and waits; nothing else does, because Listen is used offline. Settings also carries a guide to the Cardputer.
+11. **Live transcript.** A Live button on the Listen tab runs Qwen3-ASR 1.7B on the phone's own GPU (llama.cpp's server, bundled in the app, OpenCL on the Adreno) and shows what is being said as it is said, lyrics-style: the recorder's audio is cut at pauses into short windows and each window becomes a line a few seconds later. The recogniser is told the language is English rather than left to guess it per window (a guess turned Hindi TV into Chinese lines); pinned that way it writes mixed speech as typed Hinglish itself, and any pure Hindi it still writes in Devanagari is transliterated by rules (`Hinglish.kt`), so every line reads the same script. It is a draft to read along; the note still comes from the box. It runs only while it is on and the screen is open, and the two model files (2.5 GB) download once from the box (`static/models/`).
+12. **On this phone.** Settings → Transcribe → "On this phone" makes the note on the device with nothing leaving it: speakers (pyannote segmentation plus a speaker-embedding model through sherpa-onnx), one Qwen3-ASR call per turn on the GPU, Hindi normalised to typed Hinglish, and a summary with title and action items from Qwen3.5 2B. Phone notes sit in the same list with an "On phone" badge, open in the same screen, play, take speaker names and answer Ask with the 2B. Each carries "Redo on the box" to get the full version (English column, better speakers) and be replaced by the box's note. It is a visible job with a notification, checkpointed so a kill resumes where it was, and it waits while a call is active or memory is short. Measured on an S24 Ultra: the 0.6B speech model is the default (about 2 GB while running, roughly 25 minutes per hour of audio); the 1.7B is a setting for when the phone has 5 GB free. Settings → On-device models downloads the files (4.5 GB in all) from the box or any URL you set.
 
 Record on the Notes tab marks a start in the buffer and sends from there when you stop, so you can lock the phone or leave the app mid-meeting. Sharing an audio file from any app uploads it.
 
@@ -165,11 +178,17 @@ Record on the Notes tab marks a start in the buffer and sends from there when yo
 
 ```bash
 cd android
-./gradlew assembleDebug testDebugUnitTest
-adb install -r app/build/outputs/apk/debug/app-debug.apk
+./gradlew assembleFullDebug testFullDebugUnitTest
+adb install -r app/build/outputs/apk/full/debug/app-full-debug.apk
 ```
 
-Then, in the app: Settings → Server → your Tailscale Serve address (the phone must be on the tailnet), Listen → Start, and allow unrestricted battery use when it asks. To have the widget, long-press the home screen and add "Turnwise".
+There are three flavours. `full` is the app with everything, including the call-capture experiment (an accessibility service, which Play's policy forbids for call recording and Play Protect refuses to sideload, so it goes on with `adb install`). `play` (`assemblePlayDebug`) is the same app without that service, the one a store build would start from. `demo` (`assembleDemoDebug`) installs beside it as "Turnwise Demo" with its own
+package name and talks to the server's demo account, so you can show the app to people without a single real meeting
+on screen. The demo account is a small proxy in front of the server that fixes the login to `demo@turnwise`
+(`demo-notes/proxy.py`, see the GIF notes in `docs/`), published on its own Tailscale Serve port; the demo flavour's
+address is `turnwise.demo.url` in `local.properties`, defaulting to the full address with port 8448.
+
+Put your addresses in `android/local.properties` before building (`turnwise.url=https://<box>.<tailnet>.ts.net:8446`, `waker.url=https://waker.<tailnet>.ts.net:8491`); they become the app's defaults and can still be changed in Settings. Then, in the app: Settings → Server → your Tailscale Serve address (the phone must be on the tailnet), Listen → Start, and allow unrestricted battery use when it asks. To have the widget, long-press the home screen and add "Turnwise". The waker address in Settings defaults to the waker phone's tailnet name; the Cardputer address is blank, meaning "find it on the network".
 
 **Its limits.** Android does not let a microphone service start itself from the background, so after an update or a reboot the app has to be opened once (the notification says so). Detecting that another app has taken the microphone relies on Android's own signal: some phones send exact digital silence in a quiet room, so silence alone is not treated as a takeover. The package is still `com.rollingrecorder`, from its first life as a recorder; renaming it would wipe the buffer and settings of an installed copy.
 
@@ -208,8 +227,11 @@ Things I would do next, roughly in the order they would help:
 - **Second worker** on a second GPU for bulk imports.
 - **Streaming answers** in the chat, token by token, instead of waiting for the whole reply.
 - **Word-level subtitles** in the player: the aligner already has word times; storing them would make the highlight follow each word.
-- **Live transcription** while recording, for the cases where reading along matters more than accuracy.
+- **Bengali.** Qwen3-ASR was not trained on it: told the language it writes the script with about seven words in ten right, left alone it writes Bengali sounds in Devanagari. A fine-tune on the open Bengali sets (Bengali.AI, Common Voice, Shrutilipi) with the MUCS code-switched data and a Hindi and English replay slice is the path; the result would ship as a second model file behind a language setting.
 - **Auth** in front of the app, so it can live beyond a tailnet.
+- **Cardputer over Bluetooth**: a low-energy control channel so the phone can switch the device's Wi-Fi on only for a transfer, and find it without mDNS.
+- **Ask Turnwise from the Cardputer's keyboard**, with the answer on its screen, through the waker's proxy.
+- **The Cardputer's bookmarks as markers** in the transcript.
 
 ## Licences
 
@@ -220,7 +242,7 @@ Code is MIT, the Android app included. The models have their own terms: pyannote
 ```bash
 .venv/bin/python -I tests/test_chat.py   # index, retrieval, prompt budget, validation, sessions, race on clear/delete
 .venv/bin/python pipeline.py             # self-checks for chunking, alignment, context-echo stripping, LLM batch retries
-(cd android && ./gradlew testDebugUnitTest)   # note parsing, the loudness blocks, markdown, speaker colours checked against the web app
+(cd android && ./gradlew testFullDebugUnitTest)   # note parsing, loudness blocks, markdown, speaker colours against the web app; Hinglish transliteration; loop collapsing
 python3 docs/diagrams/build.py           # redraws the diagrams, checking every connector
 ```
 
