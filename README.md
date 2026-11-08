@@ -45,7 +45,7 @@ A turn in the transcript looks like this:
 
 <img src="docs/architecture.svg" alt="System architecture: the Cardputer pocket recorder feeds the Android app over Wi-Fi; the Android app and the web app reach Tailscale Serve over HTTPS; it adds the visitor's login and proxies to a FastAPI service on the Turnwise machine. The API queues jobs for one GPU worker, which writes notes to disk and calls an Ollama LLM, optionally on a second machine woken over Wake-on-LAN. A waker phone on the tailnet wakes and shuts down the machines. A chat engine reads the notes and answers with the local model or, for the owner, with Claude Code. Claude Code's skill and the CLI call the API locally.">
 
-1. **Phone.** The Android app keeps a rolling buffer and sends a stretch you pick, a file you share to it, or the last minutes from the Cardputer. The web app records or uploads in the browser.
+1. **Phone.** The Android app keeps a rolling buffer and sends a stretch you pick, a file you share to it, or the last minutes from the Cardputer. The web app records or uploads in the browser. With "On this phone" switched on, the app skips the rest of this list and makes the note on the device (item 12 under the app).
 2. **Tailscale Serve** terminates HTTPS on :8446 and stamps every request with the visitor's tailnet login, overwriting anything a client sent.
 3. **FastAPI** turns that login into a notes root (yours, or a guest's own), stores the upload and queues a job. It also serves the web app and the REST API both apps use.
 4. **One GPU worker** runs one job at a time: ffmpeg, DeepFilterNet on the CPU, pyannote and Qwen3-ASR with MMS alignment on the GPU, then matching against known voices.
@@ -78,6 +78,7 @@ Models load lazily, stay resident between jobs, and unload after ten minutes idl
 | Diarization | pyannote community-1 | The best open diarizer, and its output includes the embeddings the voice memory needs. Gated on Hugging Face (free, CC-BY-4.0). |
 | Word timing | torchaudio MMS forced aligner | Qwen's own aligner has no Hindi. Window mode with alignment matched per-turn mode on a three-minute clip and keeps context on hour-long meetings. |
 | Noise removal | DeepFilterNet3 static binary | No Python dependencies, fast on CPU. Full-strength suppression removed quiet speakers, hence the cap. |
+| On the phone | Qwen3-ASR 0.6B and 1.7B as Q8 GGUF on llama.cpp (OpenCL), pyannote segmentation plus WeSpeaker through sherpa-onnx, Qwen3.5 2B for summaries | Measured on an S24 Ultra: the 1.7B is the box's quality at a third of real time but needs 5 GB, so the 0.6B is the default; Q4_K_M files die on the Adreno's OpenCL, Q8_0 and Q4_0 run; sherpa's clustering at 0.6 matched the box's speaker count best. Qwen3-ASR left to guess the language per window called Hindi TV Chinese, so it is told the language. |
 | Hinglish and summaries | Ollama, `qwen3.5:9b` by default | `qwen3.6:35b-a3b` on a second machine ran at the same speed and was slightly more verbatim (it kept a syllable the 9B dropped). Bigger models improve summaries, not the words or the speakers. |
 
 ## Setup
@@ -154,9 +155,9 @@ Deleting a known voice also untags that name in every note, so the labels can be
 
 ## The Android app
 
-[`android/`](android) is a native Kotlin and Jetpack Compose app with no third-party libraries beyond AndroidX. It does two things: it listens all the time, so nothing has to be planned, and it is a full Turnwise client.
+[`android/`](android) is a native Kotlin and Jetpack Compose app on AndroidX; the only other libraries are sherpa-onnx and a bundled llama.cpp server, both for the on-device mode. It does three things: it listens all the time, so nothing has to be planned; it is a full Turnwise client; and, if you ask it to, it makes the note itself without the box.
 
-<img src="docs/android-architecture.svg" alt="Android app architecture: five Compose screens on a shell with the mini player and the two cats; a shared PreviewPlayer and an Api client that talks to the Turnwise server over Tailscale; and an always-on recorder in which a widget and notification drive a foreground RecorderService, a RecordingEngine reading the microphone, a ChunkWriter encoding 30-second AAC chunks, a ChunkStore keeping the last hours, and a ClipExporter that saves clips to Recordings.">
+<img src="docs/android-architecture.svg" alt="Android app architecture: five Compose screens on a shell with the mini player and the two cats; a shared PreviewPlayer and an Api client that talks to the Turnwise server over Tailscale; and an always-on recorder in which a widget and notification drive a foreground RecorderService, a RecordingEngine reading the microphone, a ChunkWriter encoding 30-second AAC chunks, a ChunkStore keeping the last hours, and a ClipExporter that saves clips to Recordings. An opt-in on-the-phone block holds the llama.cpp server with Qwen3-ASR and Qwen3.5 2B and sherpa-onnx for speakers; it gets live audio from the recorder and phone notes from the Api client.">
 
 1. **RecorderService** holds the microphone as a foreground service and comes back if Android kills it.
 2. **ChunkWriter** encodes 30-second AAC chunks at 48 kbps (about 21 MB an hour) and stores one loudness value per second, which draws the wave on the Listen tab.
@@ -226,7 +227,7 @@ Things I would do next, roughly in the order they would help:
 - **Second worker** on a second GPU for bulk imports.
 - **Streaming answers** in the chat, token by token, instead of waiting for the whole reply.
 - **Word-level subtitles** in the player: the aligner already has word times; storing them would make the highlight follow each word.
-- **Live transcription** while recording, for the cases where reading along matters more than accuracy.
+- **Bengali.** Qwen3-ASR was not trained on it: told the language it writes the script with about seven words in ten right, left alone it writes Bengali sounds in Devanagari. A fine-tune on the open Bengali sets (Bengali.AI, Common Voice, Shrutilipi) with the MUCS code-switched data and a Hindi and English replay slice is the path; the result would ship as a second model file behind a language setting.
 - **Auth** in front of the app, so it can live beyond a tailnet.
 - **Cardputer over Bluetooth**: a low-energy control channel so the phone can switch the device's Wi-Fi on only for a transfer, and find it without mDNS.
 - **Ask Turnwise from the Cardputer's keyboard**, with the answer on its screen, through the waker's proxy.
@@ -241,7 +242,7 @@ Code is MIT, the Android app included. The models have their own terms: pyannote
 ```bash
 .venv/bin/python -I tests/test_chat.py   # index, retrieval, prompt budget, validation, sessions, race on clear/delete
 .venv/bin/python pipeline.py             # self-checks for chunking, alignment, context-echo stripping, LLM batch retries
-(cd android && ./gradlew testDebugUnitTest)   # note parsing, the loudness blocks, markdown, speaker colours checked against the web app
+(cd android && ./gradlew testFullDebugUnitTest)   # note parsing, loudness blocks, markdown, speaker colours against the web app; Hinglish transliteration; loop collapsing
 python3 docs/diagrams/build.py           # redraws the diagrams, checking every connector
 ```
 
