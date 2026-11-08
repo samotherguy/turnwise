@@ -86,6 +86,7 @@ class LlamaServer private constructor(private val context: Context, val spec: Mo
             val cur = current
             if (cur != null && cur.spec == spec && cur.alive) return cur
             cur?.stop()
+            killOrphans()
             val s = LlamaServer(context.applicationContext, spec, mmproj, ctx)
             synchronized(lock) { current = s }
             try { s.start() } catch (t: Throwable) { s.stop(); synchronized(lock) { if (current === s) current = null }; throw t }
@@ -93,7 +94,20 @@ class LlamaServer private constructor(private val context: Context, val spec: Mo
             return s
         }
 
-        fun release() { synchronized(lock) { current?.stop(); current = null } }
+        fun release() { synchronized(lock) { current?.stop(); current = null }; killOrphans() }
+
+        /** A server left behind by a killed app process keeps its GPU memory; find any under our uid and end it. Called only while none of ours is running. */
+        fun killOrphans() {
+            val me = android.os.Process.myPid(); val uid = android.os.Process.myUid()
+            File("/proc").listFiles()?.forEach { d ->
+                val pid = d.name.toIntOrNull() ?: return@forEach
+                if (pid == me) return@forEach
+                val cmd = runCatching { File(d, "cmdline").readText() }.getOrNull() ?: return@forEach
+                if (!cmd.contains("libllamaserver.so")) return@forEach
+                if (runCatching { android.system.Os.stat(d.path).st_uid }.getOrNull() != uid) return@forEach
+                Log.w(TAG, "killing stale model server $pid"); android.os.Process.killProcess(pid)
+            }
+        }
 
         fun wavHeader(dataLen: Int): ByteArray {
             val b = java.nio.ByteBuffer.allocate(44).order(java.nio.ByteOrder.LITTLE_ENDIAN)

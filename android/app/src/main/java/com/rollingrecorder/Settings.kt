@@ -46,6 +46,11 @@ class Settings(context: Context) {
         get() = prefs.getString("transcribe_on", "box") ?: "box"
         set(value) { prefs.edit().putString("transcribe_on", value).apply() }
 
+    /** "auto" (1.7B when memory allows), "light" (always the 0.6B) or "better" (always the 1.7B). */
+    var asrQuality: String
+        get() = prefs.getString("asr_quality", "auto") ?: "auto"
+        set(value) { prefs.edit().putString("asr_quality", value).apply() }
+
     /** Where model files come from; blank means the box's /models/. */
     var modelsUrl: String
         get() = prefs.getString("models_url", "") ?: ""
