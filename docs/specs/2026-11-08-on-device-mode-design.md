@@ -1,5 +1,7 @@
 # On-device mode: design
 
+Status 2026-11-08: built and verified end to end on the S24 Ultra (10-minute real meeting: 90 turns, six voices against the box's five, readable Hinglish transcript, a correct summary with owners). Differences from the plan below: the 0.6B speech model is the default for notes (the 1.7B costs ~5 GB of RAM on the phone and gets the app killed when memory is tight; it is a setting), and the job is a special-use foreground service with checkpoints and a restart cap, because Samsung kills apps under memory pressure during calls and the timed service types crash the app.
+
 A second way to make a note: everything on the phone, nothing leaving it. The server path is unchanged.
 
 ## Notes
