@@ -180,7 +180,7 @@ cd android
 adb install -r app/build/outputs/apk/full/debug/app-full-debug.apk
 ```
 
-There are two flavours. `full` is the app. `demo` (`assembleDemoDebug`) installs beside it as "Turnwise Demo" with its own
+There are three flavours. `full` is the app with everything, including the call-capture experiment (an accessibility service, which Play's policy forbids for call recording and Play Protect refuses to sideload, so it goes on with `adb install`). `play` (`assemblePlayDebug`) is the same app without that service, the one a store build would start from. `demo` (`assembleDemoDebug`) installs beside it as "Turnwise Demo" with its own
 package name and talks to the server's demo account, so you can show the app to people without a single real meeting
 on screen. The demo account is a small proxy in front of the server that fixes the login to `demo@turnwise`
 (`demo-notes/proxy.py`, see the GIF notes in `docs/`), published on its own Tailscale Serve port; the demo flavour's

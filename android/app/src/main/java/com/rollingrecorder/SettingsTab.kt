@@ -66,7 +66,7 @@ fun SettingsTab(padding: PaddingValues) {
         item { PageTitle("Settings") }
         item { Column { ListenerSettings(onAddressChanged = { reconnect++ }) } }
         item { PowerPanel() }
-        if (BuildConfig.FLAVOR != "demo") item { CallsPanel() }
+        if (BuildConfig.CALL_CAPTURE) item { CallsPanel() }
         item { CardputerGuide() }
         polled.error?.let { item { Banner(it, error = true) } }
         saveError?.let { item { Banner("Not saved: $it", error = true) } }

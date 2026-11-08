@@ -27,12 +27,16 @@ android {
     }
     packaging { jniLibs { useLegacyPackaging = true } }   // extract jniLibs to disk: the server binary is executed, not loaded
 
-    // "demo" installs beside the real app (own package name) and talks to the server's demo account, so nothing real is shown.
+    // "full" is the app with everything, including the call-capture experiment (an accessibility service, which Play policy
+    // forbids and Play Protect refuses to sideload). "play" is the same app without it, for a store build. "demo" installs
+    // beside the real app (own package name) and talks to the server's demo account, so nothing real is shown.
     flavorDimensions += "account"
     productFlavors {
-        create("full") { dimension = "account" }
+        create("full") { dimension = "account"; buildConfigField("boolean", "CALL_CAPTURE", "true") }
+        create("play") { dimension = "account"; buildConfigField("boolean", "CALL_CAPTURE", "false") }
         create("demo") {
             dimension = "account"
+            buildConfigField("boolean", "CALL_CAPTURE", "false")
             applicationIdSuffix = ".demo"
             versionNameSuffix = "-demo"
             manifestPlaceholders["appName"] = "Turnwise Demo"
