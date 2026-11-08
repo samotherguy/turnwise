@@ -68,7 +68,7 @@ object LocalNotes {
     /** The note, like `/api/notes/{id}`: the transcript merged over the summary, embeddings left out. */
     fun note(context: Context, id: String): JSONObject {
         val o = summary(context, id); val t = transcript(context, id)
-        if (t != null) t.keys().forEach { k -> if (k != "embeddings") o.put(k, t.get(k)) }
+        if (t != null) t.keys().forEach { k -> if (k != "embeddings" && k != "turns" && k != "turns_done") o.put(k, t.get(k)) }
         if (!o.has("segments")) o.put("segments", JSONArray()); if (!o.has("action_items")) o.put("action_items", JSONArray())
         o.put("backend", "phone"); o.put("warning", t?.optString("warning")?.ifBlank { null } ?: meta(context, id).optString("warning").ifBlank { null } ?: JSONObject.NULL)
         return o

@@ -1,7 +1,9 @@
 package com.rollingrecorder
 
 import android.content.Context
+import android.media.AudioManager
 import android.net.Uri
+import kotlinx.coroutines.delay
 import android.util.Log
 import org.json.JSONArray
 import org.json.JSONObject
@@ -17,7 +19,7 @@ object PhonePipeline {
     const val WARNING = "Transcribed on this phone: no English translation, speakers are approximate. Redo on the box for the full version."
 
     suspend fun run(context: Context, id: String, isActive: () -> Boolean, progress: (String) -> Unit) {
-        fun stage(state: String, detail: String = "") { LocalNotes.setStatus(context, id, state, detail); progress(detail.ifBlank { state }) }
+        val stage: (String, String) -> Unit = { state, detail -> LocalNotes.setStatus(context, id, state, detail); progress(detail.ifBlank { state }) }
         try {
             for (spec in Models.ALL) if (!Models.has(context, spec)) { stage("downloading", spec.label); Models.download(context, spec, isActive) }
 
@@ -27,17 +29,31 @@ object PhonePipeline {
             val duration = samples.size.toDouble() / SAMPLE_RATE
             LocalNotes.saveMeta(context, id, LocalNotes.meta(context, id).put("duration", duration))
 
-            stage("diarizing", "Finding who speaks when")
-            val diar = Diarizer(context)
-            val turns = try { diar.turns(samples).ifEmpty { listOf(Diarizer.Turn(0.0, duration, 0)) } } finally { }
-            val embeddings = runCatching { diar.embeddings(samples, turns) }.getOrDefault(emptyMap())
-            diar.release()
+            // Checkpoint: a restart (Samsung kills apps under memory pressure) continues from the saved turns and segments.
+            val saved = LocalNotes.transcript(context, id)
+            val savedTurns = saved?.optJSONArray("turns")?.let { a -> List(a.length()) { a.getJSONObject(it).let { o -> Diarizer.Turn(o.getDouble("start"), o.getDouble("end"), o.getInt("speaker")) } } }
+            val turns: List<Diarizer.Turn>; val embeddings: Map<Int, FloatArray>
+            if (savedTurns != null && savedTurns.isNotEmpty()) {
+                turns = savedTurns
+                embeddings = saved.optJSONObject("embeddings")?.let { e -> e.keys().asSequence().associate { k -> k.removePrefix("SPEAKER_").toInt() to e.getJSONArray(k).let { a -> FloatArray(a.length()) { a.getDouble(it).toFloat() } } } } ?: emptyMap()
+            } else {
+                waitForNoCall(context, stage)
+                stage("diarizing", "Finding who speaks when")
+                val diar = Diarizer(context)
+                turns = diar.turns(samples).ifEmpty { listOf(Diarizer.Turn(0.0, duration, 0)) }
+                embeddings = runCatching { diar.embeddings(samples, turns) }.getOrDefault(emptyMap())
+                diar.release()
+                LocalNotes.saveTranscript(context, id, transcriptJson(JSONArray(), turns, emptyMap(), embeddings, "", JSONArray(), null))
+            }
             val names = LocalNotes.matchSpeakers(context, embeddings)
+            val segments = saved?.optJSONArray("segments") ?: JSONArray()
+            val doneTurns = saved?.optInt("turns_done", 0) ?: 0
 
-            stage("transcribing", "0/${turns.size} turns")
+            waitForNoCall(context, stage)
+            stage("transcribing", "$doneTurns/${turns.size} turns")
             val asr = LlamaServer.acquire(context, Models.ASR, Models.ASR_PROJECTOR, ctx = 1024)
-            val segments = JSONArray()
             turns.forEachIndexed { i, t ->
+                if (i < doneTurns) return@forEachIndexed
                 if (!isActive()) throw kotlinx.coroutines.CancellationException()
                 val a = (t.start * SAMPLE_RATE).toInt().coerceIn(0, samples.size); val b = (t.end * SAMPLE_RATE).toInt().coerceIn(a, samples.size)
                 val pcm = ByteArray((b - a) * 2); var k = 0
@@ -50,12 +66,13 @@ object PhonePipeline {
                 }
                 if (i % 5 == 4 || i == turns.lastIndex) {
                     stage("transcribing", "${i + 1}/${turns.size} turns")
-                    LocalNotes.saveTranscript(context, id, transcriptJson(segments, turns, names, embeddings, "", JSONArray(), null))
+                    LocalNotes.saveTranscript(context, id, transcriptJson(segments, turns, names, embeddings, "", JSONArray(), null).put("turns_done", i + 1))
                 }
             }
             LlamaServer.release()
             System.gc()
 
+            waitForNoCall(context, stage)
             stage("summarizing", "Writing the summary")
             val llm = LlamaServer.acquire(context, Models.LLM, ctx = 7168)
             val speakersMap = HashMap<String, String?>()
@@ -67,7 +84,7 @@ object PhonePipeline {
             if (meta.optBoolean("title_auto", true) && title.isNotBlank()) meta.put("title", title)
             LocalNotes.saveMeta(context, id, meta)
             LocalNotes.saveTranscript(context, id, transcriptJson(segments, turns, names, embeddings, summary, items, WARNING))
-            stage("done")
+            stage("done", "")
         } catch (t: Throwable) {
             LlamaServer.release()
             if (t is kotlinx.coroutines.CancellationException) { stage("error", "Cancelled"); throw t }
@@ -76,14 +93,22 @@ object PhonePipeline {
         }
     }
 
+    /** A call plus a 2.5 GB model is what gets the app killed for memory: heavy stages wait for the call to end. */
+    private suspend fun waitForNoCall(context: Context, stage: (String, String) -> Unit) {
+        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        var said = false
+        while (am.mode != AudioManager.MODE_NORMAL) { if (!said) { stage("queued", "Waiting for the call to end"); said = true }; delay(10_000) }
+    }
+
     private fun transcriptJson(segments: JSONArray, turns: List<Diarizer.Turn>, names: Map<Int, String>, embeddings: Map<Int, FloatArray>, summary: String, items: JSONArray, warning: String?): JSONObject {
         val speakers = JSONObject(); val embs = JSONObject()
+        val turnsArr = JSONArray(); for (t in turns) turnsArr.put(JSONObject().put("start", t.start).put("end", t.end).put("speaker", t.speaker))
         for (spk in turns.map { it.speaker }.distinct().sorted()) {
             val key = "SPEAKER_%02d".format(spk)
             speakers.put(key, names[spk] ?: JSONObject.NULL)
             embeddings[spk]?.let { e -> embs.put(key, JSONArray().apply { e.forEach { put(it.toDouble()) } }) }
         }
-        return JSONObject().put("segments", segments).put("speakers", speakers).put("embeddings", embs).put("summary", summary).put("action_items", items)
+        return JSONObject().put("segments", segments).put("speakers", speakers).put("embeddings", embs).put("turns", turnsArr).put("summary", summary).put("action_items", items)
             .put("warning", warning ?: JSONObject.NULL).put("backend", "phone")
     }
 
