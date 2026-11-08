@@ -45,16 +45,23 @@ class LlamaServer private constructor(private val context: Context, val spec: Mo
     fun stop() { process?.destroy(); process = null }
     val alive get() = process?.isAlive == true
 
-    /** Speech to text for one window of 16 kHz PCM; the model's language prefix is stripped and loops collapsed. */
+    /**
+     * Speech to text for one window of 16 kHz PCM. The model is told the language instead of guessing it: an
+     * unforced guess turned Hindi TV into Chinese lines. "English" is the right pin for Hinglish: mixed speech
+     * comes back typed the way people write it (`kar raha hai`), pure Hindi still comes back in Devanagari.
+     */
     fun transcribe(pcm: ByteArray, maxTokens: Int): String {
         val wav = ByteArrayOutputStream(pcm.size + 44).apply { write(wavHeader(pcm.size)); write(pcm) }.toByteArray()
-        val content = JSONArray()
-            .put(JSONObject().put("type", "input_audio").put("input_audio", JSONObject().put("data", Base64.encodeToString(wav, Base64.NO_WRAP)).put("format", "wav")))
-            .put(JSONObject().put("type", "text").put("text", "Transcribe this audio."))
-        val body = JSONObject().put("temperature", 0).put("max_tokens", maxTokens).put("repeat_penalty", 1.1).put("repeat_last_n", 48)
-            .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", content)))
-        return post(body, 120_000).replace(Regex("^\\s*language\\s+\\w+\\s*<asr_text>"), "").trim()
+        // The server's chat template for one audio message, plus the assistant prefix as prefill (raw /completion allows that; chat does not).
+        val prompt = "<|im_start|>user\n${marker()}Transcribe this audio.<|im_end|>\n<|im_start|>assistant\nlanguage $ASR_LANGUAGE<asr_text>"
+        val body = JSONObject().put("temperature", 0).put("n_predict", maxTokens).put("repeat_penalty", 1.1).put("repeat_last_n", 48).put("cache_prompt", false)
+            .put("prompt", JSONObject().put("prompt_string", prompt).put("multimodal_data", JSONArray().put(Base64.encodeToString(wav, Base64.NO_WRAP))))
+        return post("/completion", body, 120_000).getString("content").replace(Regex("^\\s*language\\s+\\w+\\s*<asr_text>"), "").trim()
     }
+
+    private var marker: String? = null
+    /** The placeholder the server substitutes media for; it is random per server process and published on /props. */
+    private fun marker(): String = marker ?: JSONObject(URL("http://127.0.0.1:$port/props").readText()).getString("media_marker").also { marker = it }
 
     /** A chat completion, optionally constrained to a JSON schema. */
     fun chat(system: String, user: String, schema: JSONObject? = null, maxTokens: Int = 600, temperature: Double = 0.2): String {
@@ -62,22 +69,23 @@ class LlamaServer private constructor(private val context: Context, val spec: Mo
             .put("chat_template_kwargs", JSONObject().put("enable_thinking", false))
             .put("messages", JSONArray().put(JSONObject().put("role", "system").put("content", system)).put(JSONObject().put("role", "user").put("content", user)))
         if (schema != null) body.put("response_format", JSONObject().put("type", "json_schema").put("json_schema", JSONObject().put("name", "out").put("schema", schema)))
-        return post(body, 900_000)
+        return post("/v1/chat/completions", body, 900_000).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
     }
 
-    private fun post(body: JSONObject, readTimeout: Int): String {
-        val c = URL("http://127.0.0.1:$port/v1/chat/completions").openConnection() as HttpURLConnection
+    private fun post(path: String, body: JSONObject, readTimeout: Int): JSONObject {
+        val c = URL("http://127.0.0.1:$port$path").openConnection() as HttpURLConnection
         try {
             c.requestMethod = "POST"; c.doOutput = true; c.connectTimeout = 5_000; c.readTimeout = readTimeout
             c.setRequestProperty("Content-Type", "application/json")
             c.outputStream.use { it.write(body.toString().toByteArray()) }
             if (c.responseCode != 200) throw IOException("model server answered ${c.responseCode}: " + (c.errorStream?.bufferedReader()?.readText()?.take(200) ?: ""))
-            return JSONObject(c.inputStream.bufferedReader().readText()).getJSONArray("choices").getJSONObject(0).getJSONObject("message").getString("content")
+            return JSONObject(c.inputStream.bufferedReader().readText())
         } finally { c.disconnect() }
     }
 
     companion object {
         private const val TAG = "LlamaServer"
+        private const val ASR_LANGUAGE = "English"   // ponytail: one pin for all speech; a Settings pick (Bengali…) if ever wanted
         private var current: LlamaServer? = null
         private val lock = Any()
 
