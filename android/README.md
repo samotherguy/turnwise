@@ -1,37 +1,39 @@
-# Rolling Recorder
+# Turnwise for Android
 
-An Android app that keeps listening in the background and holds the last few hours of audio in a rolling buffer. Open the app at any time and save the last 5 minutes, the last 2 hours, or any stretch in between. Saved clips stay on the phone permanently, ready to hand to Turnwise for transcription.
+The phone side of [Turnwise](../README.md): an app that listens all the time into a rolling buffer, sends any stretch of it to the box for a transcript, and can make the note on the phone itself when the box is out of reach. What each screen does, how the pieces fit, and the measurements behind the choices are in the main README under [The Android app](../README.md#the-android-app); this file is the build and install sheet.
 
-## Installing
+## Build
 
-Option 1: Open this folder in Android Studio, let it sync, and press Run with your phone connected.
+JDK 17 and the Android SDK; the Gradle wrapper fetches the rest. Put your addresses in `local.properties` first (`turnwise.url=https://<box>.<tailnet>.ts.net:8446`, `waker.url=https://waker.<tailnet>.ts.net:8491`, optionally `turnwise.demo.url`); the repo ships placeholders.
 
-Option 2: Push the folder to GitHub. The workflow in `.github/workflows/build.yml` builds the app and attaches `app-debug.apk` as a downloadable artifact under the Actions tab. Copy it to the phone and open it. Android will ask you to allow installs from unknown sources.
+```bash
+./gradlew assembleFullDebug testFullDebugUnitTest
+adb install -r app/build/outputs/apk/full/debug/app-full-debug.apk
+```
 
-On first launch, grant the microphone and notification permissions, then tap "Allow unrestricted battery use". The second step matters: without it, some phone makers (Samsung, Xiaomi, Oppo and others) will stop the app after a while.
+Three flavours build from the same code:
 
-## How it works
+| Flavour | Task | What it is |
+| --- | --- | --- |
+| `full` | `assembleFullDebug` | Everything, including call capture through an accessibility service. Play Protect refuses to sideload an APK that declares one, so it goes on with `adb install`; after every reinstall the service has to be switched back on in Settings → Accessibility. |
+| `play` | `assemblePlayDebug` | The same app without that service: what a store build would start from. Installs from a file. |
+| `demo` | `assembleDemoDebug` | "Turnwise Demo", its own package beside the real app, pointed at the server's demo account so no real meeting is on screen. |
 
-Audio is recorded at 16 kHz mono and compressed to Advanced Audio Coding (AAC) at 48 kilobits per second. It is written in 30-second chunks into the app's private storage. Chunks older than the rolling window are deleted. At 48 kilobits per second, 2 hours takes about 43 MB and 10 hours about 216 MB.
+The on-device mode needs two native pieces that are checked in: `app/libs/sherpa-onnx-2.0.1.aar` (speaker segmentation and embeddings) and `app/src/main/jniLibs/arm64-v8a/libllamaserver.so`, llama.cpp's server built for Android with OpenCL (`~/.local/opt/build-llama-android.sh` in the author's setup: NDK 25, `-DGGML_OPENCL=ON -DGGML_OPENMP=OFF`, 16 KB page alignment). The app is arm64 only. The model files themselves are not in the repo; the app downloads them from the box's `static/models/` or any URL set in Settings.
 
-Saving a clip joins the chunks that overlap your range and trims the first and last one at about 60 millisecond precision, without re-encoding. The result goes to `Recordings/RollingRecorder` (`Music/RollingRecorder` before Android 12), so it shows up in the Files app. Saving runs beside the recorder and never pauses it.
+## First run
 
-## Calls and other apps using the microphone
+Grant the microphone and notification permissions and allow unrestricted battery use when asked; without the last one Samsung, Xiaomi and others stop the app after a while. Then Settings → Server → your Tailscale Serve address (the phone must be on the tailnet) and Listen → Start. For the widget, long-press the home screen and add "Turnwise".
 
-Android lets one app at a time have the microphone during a phone, WhatsApp or Teams call. Instead of an error, it silences the stream going to this app. The app detects that in two ways (Android's own silenced flag, and a full second of digital silence), stops writing, shows "Paused" in the app and in the notification, and starts writing again as soon as audio returns. Nothing needs tapping. The conversation you had on the call itself is not captured, because the phone does not let a third app hear it.
+## What to know
 
-## Start and stop
+- **Starting after a reboot or update.** Android does not let a microphone service start itself from the background, so the app posts a notification and one tap resumes listening.
+- **Calls.** Without call capture, a phone, WhatsApp or Teams call silences the microphone stream and the app shows "Paused" until it returns. With the `full` flavour and the accessibility service on, Samsung phones deliver both sides of the call, at the ear too, and the recording ends with the call.
+- **Memory.** The phone pipeline runs as a visible job with checkpoints. Samsung kills apps under memory pressure during calls, so the job waits while a call is active, resumes where it was after a kill, and gives up with a message after four attempts.
+- **Storage.** 48 kbps AAC in 30-second chunks: about 21 MB an hour of buffer. Clips go to `Recordings/RollingRecorder` (`Music/RollingRecorder` before Android 12). The package is still `com.rollingrecorder` from the app's first life; renaming it would wipe an installed copy's buffer and settings.
+- **Battery.** The microphone is held all the time, so the indicator dot is permanent and the drain is real.
+- Recording people without their knowledge is restricted in many places. Check the rules where you are.
 
-Tap Start listening to switch it on and Stop listening to switch it off. The choice is remembered. If you stop it, it stays stopped, including after a reboot. If it is on, it restarts after Android kills it.
+## Tests
 
-## Limits to know about
-
-Android 14 and later do not let an app start a microphone service from the background. So after a reboot or an app update, the app cannot restart silently. It posts a notification, and one tap on it resumes listening. The same applies in the rare case where Android kills the service and refuses to restart it.
-
-A crash or force stop loses at most the 30-second chunk being written.
-
-If you shorten the rolling window, audio older than the new window is deleted straight away.
-
-The microphone is in use all the time, so Android shows its microphone indicator dot permanently, and the battery cost is real (an always-on wake lock keeps encoding running with the screen off). Expect noticeably higher drain than a normal app.
-
-Recording people without their knowledge is restricted in many places. Check the rules where you are.
+`./gradlew testFullDebugUnitTest`: note parsing, loudness blocks, markdown and speaker colours checked against the web app, the Hinglish transliteration rules, and the loop collapsing used on live lines.

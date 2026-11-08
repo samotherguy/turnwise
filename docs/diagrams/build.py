@@ -206,7 +206,7 @@ def system():
 # ---------- 2. the Android app ----------
 def android():
     d = Diagram(1320, 920, "Turnwise for Android: app architecture",
-                "Kotlin and Jetpack Compose, no third-party libraries beyond AndroidX. One foreground service owns the microphone.")
+                "Kotlin and Jetpack Compose on AndroidX, plus sherpa-onnx and a bundled llama.cpp server for the on-device mode. One foreground service owns the microphone.")
     you = Box(d, "you", 30, 170, 190, 90, "You, in the app", ["five tabs and the", "screens they open"], "actor")
     you2 = Box(d, "you2", 30, 492, 190, 96, "You, outside it", ["home-screen widget,", "notification buttons"], "actor")
     Box(d, "app", 250, 100, 770, 660, "Turnwise Android app", [], "panel", container=True)
@@ -228,6 +228,7 @@ def android():
     ex = Box(d, "ex", xs[4], 640, w, 86, "ClipExporter", ["joins chunks,", "no re-encoding"])
     server = Box(d, "server", 1080, 330, 210, 110, "Turnwise server", ["over Tailscale, HTTPS", "the same API as the", "web app"], "ext")
     card = Box(d, "card", 1080, 480, 210, 120, "Cardputer", ["on the same Wi-Fi,", "found over mDNS", "", "chunks pulled, stitched", "and sent as one file"], "ext")
+    onphone = Box(d, "onphone", 1080, 630, 210, 130, "On the phone (opt-in)", ["llama.cpp server, GPU:", "Qwen3-ASR, Qwen3.5 2B", "sherpa-onnx: speakers", "Live lines (11), phone", "notes and Ask (12)"])
     plat = Box(d, "plat", 270, 810, 730, 70, "Android platform", ["AudioRecord · MediaCodec · MediaMuxer · MediaStore (Recordings) · MediaPlayer"], "box")
 
     d.link("you", "screens", [you.at("r", 215), screens.at("l", 215)])
@@ -236,6 +237,8 @@ def android():
     d.link("screens", "player", [screens.at("b", 450), player.at("t", 450)], "play", both=True)
     d.link("api", "server", [api.at("r", 385), server.at("l", 385)], "REST, audio", both=True)
     d.link("api", "card", [api.at("r", 415), (1050, 415), (1050, 540), card.at("l", 540)], "status,\nchunks", label_at=2, label_left=True)
+    d.link("api", "onphone", [api.at("r", 425), (1040, 425), (1040, 690), onphone.at("l", 690)], "notes", label_at=2, label_dy=-6)
+    d.link("rec", "onphone", [rec.at("r", 720), onphone.at("l", 720)], "live audio")
     d.link("widget", "svc", [widget.at("r", 548), svc.at("l", 548)])
     d.link("svc", "eng", [svc.at("r", 548), eng.at("l", 548)])
     d.link("eng", "wr", [eng.at("r", 548), wr.at("l", 548)])
@@ -244,7 +247,7 @@ def android():
     d.link("plat", "eng", [plat.at("t", 635), eng.at("b", 635)], "microphone", label_left=True)
     d.link("wr", "plat", [wr.at("b", 777), plat.at("t", 777)], "encode, mux", both=True, label_left=True)
     d.link("ex", "plat", [ex.at("b", 919), plat.at("t", 919)], "save to\nRecordings")
-    for n, key in [(1, "svc"), (2, "wr"), (3, "st"), (4, "s2"), (5, "ex"), (6, "api"), (7, "player"), (8, "widget")]:
+    for n, key in [(1, "svc"), (2, "wr"), (3, "st"), (4, "s2"), (5, "ex"), (6, "api"), (7, "player"), (8, "widget"), (12, "onphone")]:
         d.badge(n, key)
     legend(d, 36, 905)
     return d

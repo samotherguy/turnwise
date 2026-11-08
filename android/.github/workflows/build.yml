@@ -23,9 +23,9 @@ jobs:
           gradle-version: 8.9
 
       - name: Build debug APK
-        run: gradle assembleDebug --no-daemon
+        run: gradle assemblePlayDebug testFullDebugUnitTest --no-daemon
 
       - uses: actions/upload-artifact@v4
         with:
-          name: rolling-recorder-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: turnwise-play-debug
+          path: app/build/outputs/apk/play/debug/app-play-debug.apk
