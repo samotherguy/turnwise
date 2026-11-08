@@ -31,6 +31,9 @@ class TranscribeService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         intent?.getStringExtra(EXTRA_ID)?.let { if (it !in queue) queue.add(it) }
         if (intent?.action == ACTION_CANCEL) { job?.cancel(); queue.clear() }
+        // After a kill (Samsung drops apps under memory pressure, calls included) notes left mid-way are picked up again.
+        for (id in unfinished(this)) if (id !in queue && id != current) queue.add(id)
+        if (queue.isEmpty() && job?.isActive != true) { stopSelf(); return START_NOT_STICKY }
         Notifications.ensureChannels(this)
         if (!Api.ready) { Api.settings = Settings(this); Api.context = applicationContext }
         try {
@@ -54,7 +57,7 @@ class TranscribeService : Service() {
             LlamaServer.release()
             stopForeground(STOP_FOREGROUND_REMOVE); stopSelf()
         }
-        return START_NOT_STICKY
+        return START_STICKY
     }
 
     private fun notification(title: String, text: String, queued: Int): Notification {
@@ -73,6 +76,13 @@ class TranscribeService : Service() {
         private const val ACTION_CANCEL = "com.rollingrecorder.TRANSCRIBE_CANCEL"
         val queue = ConcurrentLinkedQueue<String>()
         @Volatile var current: String? = null
+
+        private val BUSY = setOf("queued", "downloading", "decoding", "diarizing", "transcribing", "summarizing")
+        fun unfinished(context: Context): List<String> = LocalNotes.root(context).listFiles()?.filter { java.io.File(it, "meta.json").exists() }
+            ?.filter { runCatching { LocalNotes.meta(context, it.name).optJSONObject("status")?.optString("state") in BUSY }.getOrDefault(false) }?.map { it.name }?.sorted() ?: emptyList()
+
+        /** Called when the app starts: restart the job for anything a kill left behind. */
+        fun resume(context: Context) { if (unfinished(context).isNotEmpty()) enqueue(context, unfinished(context).first()) }
 
         fun enqueue(context: Context, id: String) {
             androidx.core.content.ContextCompat.startForegroundService(context, Intent(context, TranscribeService::class.java).putExtra(EXTRA_ID, id))
