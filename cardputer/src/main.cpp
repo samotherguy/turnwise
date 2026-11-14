@@ -54,7 +54,7 @@ static void handle(String line) {
     else if (sub == "on" || sub == "off") { net::setEnabled(sub == "on"); Serial.println("OK"); }
     else Serial.println(net::describe());
   }
-  else if (cmd == "waker") { Preferences p; p.begin("box"); if (arg.length()) p.putString("waker", arg); Serial.println("waker url: " + p.getString("waker", "http://192.168.1.16:8490")); p.end(); }
+  else if (cmd == "waker") { Preferences p; p.begin("box"); if (arg.length()) p.putString("waker", arg); Serial.println("waker url: " + p.getString("waker", "http://waker.local:8490")); p.end(); }
   else if (cmd == "ac") { if (arg == "on") aircon::power(true); else if (arg == "off") aircon::power(false); else aircon::send(); Serial.println("OK sent"); }
   else if (cmd == "sd") { Serial.println(store::remount() ? "OK mounted" : "ERR mount failed"); if (store::mounted() && !recorder::status().running) recorder::start(); }
   else if (cmd == "log") Serial.print(logring::dump());

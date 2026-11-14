@@ -22,7 +22,7 @@ namespace {
   void say(const String& t) { toast = t; toastUntil = millis() + 2500; dirty = true; }
 
   // --- Box: the GPU box through the waker phone on the LAN ---
-  String wakerUrl() { Preferences p; p.begin("box", true); String u = p.getString("waker", "http://192.168.1.16:8490"); p.end(); return u; }
+  String wakerUrl() { Preferences p; p.begin("box", true); String u = p.getString("waker", "http://waker.local:8490"); p.end(); return u; }
   int boxUp = -1, llmUp = -1; uint32_t boxPolled = 0, offArmed = 0;
   String http(const String& method, const String& url) {
     if (!net::connected()) return "";

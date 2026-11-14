@@ -1,8 +1,9 @@
 # Turnwise waker configuration (read by /usr/local/bin/waker.py)
-SERVER_MAC=00:11:22:aa:bb:01
+# Example values: copy to /etc/waker.conf on the phone and fill in your own MACs and addresses.
+SERVER_MAC=aa:bb:cc:dd:ee:01
 SERVER_HOST=192.168.1.2
 SERVER_PORT=22
-LLM_MAC=00:11:22:aa:bb:02
+LLM_MAC=aa:bb:cc:dd:ee:02
 LLM_HOST=<llm-tailscale-ip>
 LLM_PORT=11434
 # Where the magic packet is sent. Filled in once the network layout is known.

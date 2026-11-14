@@ -1,7 +1,7 @@
 #!/bin/sh
 # Run as root on the waker phone after copying waker.py to /home/abhyuday/. Idempotent.
 set -e
-grep -q <box> /etc/hosts || echo "<box-tailscale-ip> <box>.<tailnet>.ts.net" >> /etc/hosts
+grep -q "<box>" /etc/hosts || echo "<box-tailscale-ip> <box>.<tailnet>.ts.net" >> /etc/hosts
 grep -q ^UPSTREAM /etc/waker.conf || printf 'UPSTREAM=https://<box>.<tailnet>.ts.net:8446\nPROXY_PORT=8447\nWAKE_WAIT=150\nREADY_PATH=/api/me\n' >> /etc/waker.conf
 install -m755 /home/abhyuday/waker.py /usr/local/bin/waker.py
 python3 /usr/local/bin/waker.py --check

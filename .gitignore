@@ -12,3 +12,4 @@ android/.gradle/
 android/local.properties
 cardputer/.pio/
 static/models/
+waker/waker.conf

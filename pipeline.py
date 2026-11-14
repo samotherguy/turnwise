@@ -609,7 +609,7 @@ if __name__ == "__main__":
     assert strip_context("Okay. Details baad mein bhejna.") == "Okay. Details baad mein bhejna."
     assert merge_turns([(0, 1, "A"), (1.2, 2, "A"), (2.5, 3, "B"), (3.1, 3.2, "B")]) == [(0, 2, "A"), (2.5, 3.2, "B")]
     assert NUM_CTX == 24576 and "num_ctx" not in llm_json.__code__.co_varnames
-    assert magic_packet("00:11:22:aa:bb:02") == b"\xff" * 6 + b"\x00\x11\x22\xaa\xbb\x02" * 16 and len(magic_packet("00:11:22:aa:bb:02")) == 102
+    assert magic_packet("00:11:22:AA:bb:cc") == b"\xff" * 6 + b"\x00\x11\x22\xaa\xbb\xcc" * 16 and len(magic_packet("00:11:22:aa:bb:cc")) == 102
     assert summarize.__code__.co_consts.count(12288) == 0 and summarize.__code__.co_consts.count(30000) == 0
     # A looping first try is retried warmer; a batch that fails twice keeps its raw words and later batches still run.
     tries = []

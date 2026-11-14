@@ -19,11 +19,11 @@ This file is the full build log with every dead end, so the next install takes a
 | poweroff key | `/root/.ssh/waker_key` | on the box its public key is pinned to `/usr/local/bin/waker-poweroff` (see `box_poweroff_setup.sh`) |
 | hosts | `/etc/hosts`: `<box-tailscale-ip> <box>.<tailnet>.ts.net` | MagicDNS does not resolve on the phone; Tailscale Serve needs the right SNI, so an IP would get a TLS alert |
 
-Addresses: Wi-Fi `192.168.1.16` (SSID `<your-ssid>`, same /24 as the box; the `-6G` SSID is 6 GHz and unusable),
-Tailscale `<waker-tailscale-ip>` / `waker.<tailnet>.ts.net`. Box: `192.168.1.2`, MAC `00:11:22:aa:bb:01`,
-Tailscale `<box-tailscale-ip>`. LLM box MAC `00:11:22:aa:bb:02`, Tailscale `<llm-tailscale-ip>`.
+Addresses: Wi-Fi `<waker-lan-ip>` (SSID `<your-ssid>`, same /24 as the box; the `-6G` SSID is 6 GHz and unusable),
+Tailscale `<waker-tailscale-ip>` / `waker.<tailnet>.ts.net`. Box: `<box-lan-ip>`, MAC `<box-mac>`,
+Tailscale `<box-tailscale-ip>`. LLM box MAC `<llm-mac>`, Tailscale `<llm-tailscale-ip>`.
 
-Files in this directory are the sources: `waker.py`, `waker.conf` (template), `waker.initd`, `50-waker.nft`,
+Files in this directory are the sources: `waker.py`, `waker.conf.example` (template for `/etc/waker.conf`), `waker.initd`, `50-waker.nft`,
 `install_on_phone.sh` (idempotent, run as root on the phone), `box_poweroff_setup.sh` (run on the box).
 Boot images live on the box in `~/waker-phone/`: `lk2nd.img`, `boot.img`, `boot-debug.img`, `combined-*.img`.
 
@@ -137,7 +137,7 @@ Boot partition layout (64 MiB): `[0, 512 KiB)` lk2nd, `[512 KiB, …)` the OS `b
 - **Box-side setup** is `box_poweroff_setup.sh`: a forced-command script that only accepts `ping` or `poweroff`,
   a `NOPASSWD` sudoers drop-in for `systemctl poweroff`, and the phone's key pinned to that script. Test with
   `ssh -i /root/.ssh/waker_key <box> ping` from the phone → `pong`. WoL on the box's NIC is armed (`ethtool enp2s0`
-  shows `Wake-on: g`) and survives a `systemctl poweroff`; the magic packet is 102 bytes to `192.168.1.255:9`.
+  shows `Wake-on: g`) and survives a `systemctl poweroff`; the magic packet is 102 bytes to `<lan-broadcast>:9`.
 
 ## Recovering root if the password is lost (done once, 2026-10-31)
 

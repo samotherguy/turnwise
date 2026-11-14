@@ -214,8 +214,8 @@ class Proxy(H):
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "--check":   # self-check: packet shape and config parse
-        p = magic("00:11:22:aa:bb:01")
-        assert len(p) == 102 and p[:6] == b"\xff" * 6 and p[6:12] == bytes.fromhex("001122aabb01")
+        p = magic("00:11:22:aa:bb:cc")
+        assert len(p) == 102 and p[:6] == b"\xff" * 6 and p[6:12] == bytes.fromhex("001122aabbcc")
         assert "SERVER_MAC" in CFG, "SERVER_MAC missing from /etc/waker.conf"
         import io
         assert dechunk(io.BytesIO(b"4\r\nWiki\r\n5\r\npedia\r\n0\r\n\r\n")) == b"Wikipedia"

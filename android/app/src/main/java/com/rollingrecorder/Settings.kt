@@ -65,7 +65,7 @@ class Settings(context: Context) {
         get() = prefs.getString("listen_source", "phone") ?: "phone"
         set(value) { prefs.edit().putString("listen_source", value).apply() }
 
-    /** The Cardputer's base URL, e.g. http://192.168.1.18; blank = find it over mDNS. */
+    /** The Cardputer's base URL, e.g. http://192.168.1.50; blank = find it over mDNS. */
     var cardputerUrl: String
         get() = prefs.getString("cardputer_url", "") ?: ""
         set(value) { prefs.edit().putString("cardputer_url", value.trim().trimEnd('/')).apply() }
