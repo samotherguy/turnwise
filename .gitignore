@@ -13,3 +13,5 @@ android/local.properties
 cardputer/.pio/
 static/models/
 waker/waker.conf
+waker/waker.env
+cardputer/src/local_config.h

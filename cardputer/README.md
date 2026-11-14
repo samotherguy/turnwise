@@ -102,3 +102,5 @@ waits or times out, which is why the app keeps showing the last status during a 
 `src/main.cpp` boot and serial commands · `src/recorder.*` capture and chunk writing · `src/store.*` the rolling
 store · `src/net.*` Wi-Fi, mDNS, NTP, API · `src/ui.*` screen and apps · `src/aircon.*` the remote ·
 `src/log.*` the event ring · `tools/cp.py` host helper.
+
+Your own waker address goes in `src/local_config.h` (gitignored; copy `src/local_config.h.example`), so it is the built-in default without being committed.

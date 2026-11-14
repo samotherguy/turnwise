@@ -1,0 +1,2 @@
+// Copy to local_config.h (gitignored) and set your own values.
+#define WAKER_URL "http://192.168.1.16:8490"

@@ -132,7 +132,7 @@ Boot partition layout (64 MiB): `[0, 512 KiB)` lk2nd, `[512 KiB, …)` the OS `b
   `Abhyuday98@github` while every device is owned by `samotherguy@github`, so the broad grant matched nothing
   and the waker's inbound packet filter was empty. The same rename made Turnwise's `OWNER_LOGIN` stale
   (`~/.config/audio-notes/env`), silently treating every device as a guest with its own notes folder.
-- **Phone-side setup** is `install_on_phone.sh` (copy `waker.py` to `/home/abhyuday/` first). It installs the
+- **Phone-side setup** is `install_on_phone.sh` (copy `waker.py` to `/home/abhyuday/` first, and put `waker.env`, made from `waker.env.example`, beside the script). It installs the
   service, the hosts entry, the proxy config and the `tailscale serve` rule.
 - **Box-side setup** is `box_poweroff_setup.sh`: a forced-command script that only accepts `ping` or `poweroff`,
   a `NOPASSWD` sudoers drop-in for `systemctl poweroff`, and the phone's key pinned to that script. Test with
